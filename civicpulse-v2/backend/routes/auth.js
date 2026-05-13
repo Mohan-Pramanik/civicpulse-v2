@@ -49,20 +49,14 @@ router.put('/updatepassword', protect, asyncHandler(async (req, res) => {
 }));
 
 // GET /api/auth/seed-admin
+// GET /api/auth/seed-admin
 router.get('/seed-admin', async (req, res) => {
-  const salt = await bcrypt.genSalt(10);
-  const pass = await bcrypt.hash('password123', salt);
-  await User.findOneAndUpdate(
-    { email: 'admin@civicpulse.in' },
-    { name: 'Admin User', email: 'admin@civicpulse.in', password: pass, role: 'admin' },
-    { upsert: true }
-  );
-  await User.findOneAndUpdate(
-    { email: 'officer@civicpulse.in' },
-    { name: 'PWD Officer', email: 'officer@civicpulse.in', password: pass, role: 'department', department: 'Public Works Department (PWD)' },
-    { upsert: true }
-  );
+  await User.findOneAndDelete({ email: 'admin@civicpulse.in' });
+  await User.findOneAndDelete({ email: 'officer@civicpulse.in' });
+  
+  await User.create({ name: 'Admin User', email: 'admin@civicpulse.in', password: 'password123', role: 'admin' });
+  await User.create({ name: 'PWD Officer', email: 'officer@civicpulse.in', password: 'password123', role: 'department', department: 'Public Works Department (PWD)' });
+  
   res.json({ message: 'Admin and Officer created!' });
-});
-
+})
 module.exports = router;
