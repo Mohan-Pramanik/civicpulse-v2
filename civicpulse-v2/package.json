@@ -1,0 +1,14 @@
+{
+  "name": "civicpulse-v2",
+  "version": "2.0.0",
+  "description": "CivicPulse - Crowdsourced Civic Issue Reporting System",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "seed": "cd backend && npm run seed",
+    "build": "cd frontend && npm run build"
+  },
+  "author": "CivicPulse Team",
+  "license": "MIT"
+}
