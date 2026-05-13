@@ -1,5 +1,6 @@
 const express = require('express');
 const router  = express.Router();
+const bcrypt  = require('bcryptjs');
 const User    = require('../models/User');
 const ApiError    = require('../utils/ApiError');
 const asyncHandler= require('../utils/asyncHandler');
@@ -47,9 +48,7 @@ router.put('/updatepassword', protect, asyncHandler(async (req, res) => {
   success(res, { token: user.getSignedToken() });
 }));
 
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
-
+// GET /api/auth/seed-admin
 router.get('/seed-admin', async (req, res) => {
   const salt = await bcrypt.genSalt(10);
   const pass = await bcrypt.hash('password123', salt);
