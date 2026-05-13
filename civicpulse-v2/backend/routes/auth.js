@@ -47,4 +47,23 @@ router.put('/updatepassword', protect, asyncHandler(async (req, res) => {
   success(res, { token: user.getSignedToken() });
 }));
 
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+
+router.get('/seed-admin', async (req, res) => {
+  const salt = await bcrypt.genSalt(10);
+  const pass = await bcrypt.hash('password123', salt);
+  await User.findOneAndUpdate(
+    { email: 'admin@civicpulse.in' },
+    { name: 'Admin User', email: 'admin@civicpulse.in', password: pass, role: 'admin' },
+    { upsert: true }
+  );
+  await User.findOneAndUpdate(
+    { email: 'officer@civicpulse.in' },
+    { name: 'PWD Officer', email: 'officer@civicpulse.in', password: pass, role: 'department', department: 'Public Works Department (PWD)' },
+    { upsert: true }
+  );
+  res.json({ message: 'Admin and Officer created!' });
+});
+
 module.exports = router;
