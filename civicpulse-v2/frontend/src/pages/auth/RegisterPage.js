@@ -2,12 +2,32 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
+const FEATURES = [
+  { icon: '📍', text: 'Report civic issues in your area instantly' },
+  { icon: '🔔', text: 'Get real-time updates on your reports' },
+  { icon: '📊', text: 'Track resolution progress live' },
+  { icon: '🤝', text: 'Join 12,000+ active Kolkata citizens' },
+];
+
+function getStrength(pw) {
+  if (!pw) return 0;
+  let s = 0;
+  if (pw.length >= 6)  s++;
+  if (pw.length >= 10) s++;
+  if (/[A-Z]/.test(pw) && /[0-9]/.test(pw)) s++;
+  if (/[^A-Za-z0-9]/.test(pw)) s++;
+  return s;
+}
+const STRENGTH_LABELS = ['', 'Weak', 'Fair', 'Good', 'Strong'];
+
 export default function RegisterPage() {
-  const [form, setForm]   = useState({ name:'', email:'', password:'', phone:'' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', phone: '' });
   const [error, setError] = useState('');
   const [busy,  setBusy]  = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  const strength = getStrength(form.password);
 
   const submit = async e => {
     e.preventDefault(); setError(''); setBusy(true);
@@ -20,41 +40,136 @@ export default function RegisterPage() {
     setBusy(false);
   };
 
-  const f = (k) => e => setForm({ ...form, [k]: e.target.value });
+  const f = k => e => setForm({ ...form, [k]: e.target.value });
 
   return (
     <div className="auth-wrap">
-      <div className="auth-box">
-        <div className="auth-logo"><div className="brand-dot" /><span>CivicPulse</span></div>
-        <h1 className="auth-title">Create account</h1>
-        <p className="auth-sub">Join citizens making Kolkata better</p>
-        {error && <div className="alert alert-error">{error}</div>}
-        <form onSubmit={submit}>
-          <div className="form-group">
-            <label className="form-label">Full name</label>
-            <input className="form-control" placeholder="Riya Sharma" value={form.name} onChange={f('name')} required autoFocus />
+      <div className="register-container">
+
+        {/* Left panel */}
+        <div className="register-left">
+          <div className="login-brand">
+            <div className="brand-dot" />
+            <span>CivicPulse</span>
           </div>
-          <div className="form-group">
-            <label className="form-label">Email address</label>
-            <input className="form-control" type="email" placeholder="you@example.com" value={form.email} onChange={f('email')} required />
-          </div>
-          <div className="grid-2">
-            <div className="form-group">
-              <label className="form-label">Phone (optional)</label>
-              <input className="form-control" placeholder="98000 00000" value={form.phone} onChange={f('phone')} />
+          <div>
+            <h2 className="register-left-title">
+              Your city.<br />
+              <span>Your voice.</span>
+            </h2>
+            <p className="register-left-sub">
+              Create your free account and start making a difference in Kolkata today.
+            </p>
+            <div className="register-features">
+              {FEATURES.map((f, i) => (
+                <div key={i} className="register-feature" style={{ animationDelay: `${0.2 + i * 0.1}s` }}>
+                  <div className="register-feature-icon">{f.icon}</div>
+                  <span>{f.text}</span>
+                </div>
+              ))}
             </div>
-            <div className="form-group">
-              <label className="form-label">Password</label>
-              <input className="form-control" type="password" placeholder="min 6 chars" value={form.password} onChange={f('password')} required />
-            </div>
           </div>
-          <button className="btn btn-primary btn-full" disabled={busy}>
-            {busy ? 'Creating…' : 'Create account →'}
-          </button>
-        </form>
-        <p style={{ textAlign:'center', marginTop:'1.25rem', fontSize:13, color:'var(--text-muted)' }}>
-          Already registered? <Link to="/login" style={{ color:'var(--green)', fontWeight:500 }}>Sign in</Link>
-        </p>
+          <div className="login-left-badge">
+            🏙️ Serving Kolkata, West Bengal
+          </div>
+        </div>
+
+        {/* Right panel */}
+        <div className="register-right">
+          <h1 className="register-title">Create your account</h1>
+          <p className="register-sub">Join thousands of active citizens</p>
+
+          {error && <div className="alert alert-error">⚠️ {error}</div>}
+
+          <form onSubmit={submit}>
+            <div className="form-group">
+              <label className="form-label">Full name</label>
+              <div className="input-wrap">
+                <span className="input-icon">👤</span>
+                <input
+                  className="form-control"
+                  placeholder="Riya Sharma"
+                  value={form.name}
+                  onChange={f('name')}
+                  required
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Email address</label>
+              <div className="input-wrap">
+                <span className="input-icon">✉️</span>
+                <input
+                  className="form-control"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={f('email')}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className="grid-2">
+              <div className="form-group">
+                <label className="form-label">Phone (optional)</label>
+                <div className="input-wrap">
+                  <span className="input-icon">📱</span>
+                  <input
+                    className="form-control"
+                    placeholder="98000 00000"
+                    value={form.phone}
+                    onChange={f('phone')}
+                  />
+                </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <div className="input-wrap">
+                  <span className="input-icon">🔒</span>
+                  <input
+                    className="form-control"
+                    type="password"
+                    placeholder="min 6 chars"
+                    value={form.password}
+                    onChange={f('password')}
+                    required
+                  />
+                </div>
+                {form.password && (
+                  <>
+                    <div className="pw-strength">
+                      {[1,2,3,4].map(i => (
+                        <div
+                          key={i}
+                          className={`pw-bar ${strength >= i ? `active-${strength}` : ''}`}
+                        />
+                      ))}
+                    </div>
+                    <div className="pw-label">{STRENGTH_LABELS[strength]} password</div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <button className="btn btn-violet btn-full login-submit" disabled={busy}>
+              {busy
+                ? <><span className="spinner-sm" style={{ borderTopColor: '#fff', borderColor: 'rgba(255,255,255,.3)' }} /> Creating account…</>
+                : '🚀 Create free account'}
+            </button>
+          </form>
+
+          <p className="login-register-link">
+            Already have an account?{' '}
+            <Link to="/login">Sign in here</Link>
+          </p>
+
+          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--soft)', marginTop: '.75rem' }}>
+            By creating an account you agree to our Terms of Service
+          </p>
+        </div>
       </div>
     </div>
   );

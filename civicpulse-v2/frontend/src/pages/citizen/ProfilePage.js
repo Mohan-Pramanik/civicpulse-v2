@@ -6,89 +6,114 @@ import { useToast } from '../../context/ToastContext';
 export default function ProfilePage() {
   const { user, refreshUser } = useAuth();
   const { toast } = useToast();
-  const [form, setForm]   = useState({ name:user?.name||'', phone:user?.phone||'', area:user?.area||'', ward:user?.ward||'' });
-  const [pass, setPass]   = useState({ currentPassword:'', newPassword:'' });
+  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', area: user?.area || '', ward: user?.ward || '' });
+  const [pass, setPass] = useState({ currentPassword: '', newPassword: '' });
   const [busy1, setBusy1] = useState(false);
   const [busy2, setBusy2] = useState(false);
 
   const saveProfile = async e => {
     e.preventDefault(); setBusy1(true);
-    try {
-      await updateProfile(form); await refreshUser();
-      toast('Profile updated ✓');
-    } catch (err) { toast(err.response?.data?.message || 'Failed', 'error'); }
+    try { await updateProfile(form); await refreshUser(); toast('Profile updated ✓'); }
+    catch (err) { toast(err.response?.data?.message || 'Failed', 'error'); }
     setBusy1(false);
   };
 
   const savePassword = async e => {
     e.preventDefault(); setBusy2(true);
-    try {
-      await updatePassword(pass);
-      setPass({ currentPassword:'', newPassword:'' });
-      toast('Password changed ✓');
-    } catch (err) { toast(err.response?.data?.message || 'Failed', 'error'); }
+    try { await updatePassword(pass); setPass({ currentPassword: '', newPassword: '' }); toast('Password changed ✓'); }
+    catch (err) { toast(err.response?.data?.message || 'Failed', 'error'); }
     setBusy2(false);
   };
 
-  const f1 = k => e => setForm(p=>({...p,[k]:e.target.value}));
-  const f2 = k => e => setPass(p=>({...p,[k]:e.target.value}));
+  const ROLE_BADGE = { admin: 'badge-red', department: 'badge-blue', citizen: 'badge-green' };
 
   return (
     <div className="page page-narrow">
-      <h1 style={{ fontSize:20, fontWeight:700, marginBottom:'1.5rem' }}>My Profile</h1>
-
-      <div className="card" style={{ marginBottom:'1rem' }}>
-        <div style={{ display:'flex', gap:14, alignItems:'center', marginBottom:'1.25rem' }}>
-          <div style={{ width:52, height:52, borderRadius:'50%', background:'var(--green-light)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:22 }}>
-            👤
+      {/* Hero */}
+      <div className="card animate-fade-up" style={{ marginBottom: '1rem', background: 'linear-gradient(135deg, var(--emerald-pale) 0%, #f0f9ff 100%)', border: '1px solid var(--emerald-light)' }}>
+        <div style={{ display: 'flex', gap: 18, alignItems: 'center' }}>
+          <div className="avatar" style={{ width: 64, height: 64, fontSize: 26 }}>
+            {user?.name?.[0]?.toUpperCase() || '?'}
           </div>
-          <div>
-            <div style={{ fontWeight:700, fontSize:16 }}>{user?.name}</div>
-            <div style={{ fontSize:13, color:'var(--text-muted)' }}>{user?.email}</div>
-            <span className={`badge ${user?.role==='admin'?'badge-red':user?.role==='department'?'badge-blue':'badge-green'}`} style={{ marginTop:4 }}>
-              {user?.role}
-            </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: 'var(--f-display)', fontSize: 20, fontWeight: 800, color: 'var(--ink)' }}>
+              {user?.name}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--soft)', marginTop: 2 }}>{user?.email}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+              <span className={`badge ${ROLE_BADGE[user?.role] || 'badge-gray'}`}>{user?.role}</span>
+              {user?.area && <span className="badge badge-gray">📍 {user.area}</span>}
+              {user?.loginCount > 0 && <span style={{ fontSize: 11, color: 'var(--soft)' }}>🔑 {user.loginCount} logins</span>}
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="section-label">Edit Profile</div>
+      {/* Edit Profile */}
+      <div className="card animate-fade-up delay-1" style={{ marginBottom: '1rem' }}>
+        <div className="section-label">✏️ Edit Profile</div>
         <form onSubmit={saveProfile}>
           <div className="grid-2">
             <div className="form-group">
               <label className="form-label">Full name</label>
-              <input className="form-control" value={form.name} onChange={f1('name')} required />
+              <div className="input-wrap">
+                <span className="input-icon">👤</span>
+                <input className="form-control" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} required />
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Phone</label>
-              <input className="form-control" value={form.phone} onChange={f1('phone')} placeholder="98000 00000" />
+              <div className="input-wrap">
+                <span className="input-icon">📱</span>
+                <input className="form-control" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="98000 00000" />
+              </div>
             </div>
           </div>
           <div className="grid-2">
             <div className="form-group">
-              <label className="form-label">Area</label>
-              <input className="form-control" value={form.area} onChange={f1('area')} placeholder="e.g. Salt Lake" />
+              <label className="form-label">Area / Locality</label>
+              <div className="input-wrap">
+                <span className="input-icon">📍</span>
+                <input className="form-control" value={form.area} onChange={e => setForm(p => ({ ...p, area: e.target.value }))} placeholder="e.g. Salt Lake" />
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Ward no.</label>
-              <input className="form-control" value={form.ward} onChange={f1('ward')} placeholder="e.g. Ward 66" />
+              <div className="input-wrap">
+                <span className="input-icon">🏛️</span>
+                <input className="form-control" value={form.ward} onChange={e => setForm(p => ({ ...p, ward: e.target.value }))} placeholder="e.g. Ward 66" />
+              </div>
             </div>
           </div>
-          <button className="btn btn-primary" disabled={busy1}>{busy1?'Saving…':'Save Profile'}</button>
+          <button className="btn btn-primary" disabled={busy1}>
+            {busy1 ? 'Saving…' : '💾 Save Profile'}
+          </button>
         </form>
       </div>
 
-      <div className="card">
-        <div className="section-label">Change Password</div>
+      {/* Change Password */}
+      <div className="card animate-fade-up delay-2">
+        <div className="section-label">🔐 Change Password</div>
         <form onSubmit={savePassword}>
           <div className="form-group">
             <label className="form-label">Current password</label>
-            <input className="form-control" type="password" value={pass.currentPassword} onChange={f2('currentPassword')} required />
+            <div className="input-wrap">
+              <span className="input-icon">🔒</span>
+              <input className="form-control" type="password" value={pass.currentPassword}
+                onChange={e => setPass(p => ({ ...p, currentPassword: e.target.value }))} required />
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">New password</label>
-            <input className="form-control" type="password" value={pass.newPassword} onChange={f2('newPassword')} required />
+            <div className="input-wrap">
+              <span className="input-icon">🔑</span>
+              <input className="form-control" type="password" value={pass.newPassword}
+                onChange={e => setPass(p => ({ ...p, newPassword: e.target.value }))} required />
+            </div>
           </div>
-          <button className="btn btn-outline" disabled={busy2}>{busy2?'Updating…':'Change Password'}</button>
+          <button className="btn btn-outline" disabled={busy2}>
+            {busy2 ? 'Updating…' : '🔄 Change Password'}
+          </button>
         </form>
       </div>
     </div>
