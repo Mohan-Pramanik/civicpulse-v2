@@ -5,20 +5,20 @@ import IssueCard from '../../components/issues/IssueCard';
 import { Spinner, EmptyState } from '../../components/common';
 
 const CATS = [
-  { key: 'all', label: 'All', icon: '🗺️' },
-  { key: 'road', label: 'Road', icon: '🛣️' },
-  { key: 'water', label: 'Water', icon: '💧' },
-  { key: 'waste', label: 'Waste', icon: '🗑️' },
-  { key: 'electricity', label: 'Electricity', icon: '⚡' },
-  { key: 'encroachment', label: 'Encroachment', icon: '🏗️' },
-  { key: 'other', label: 'Other', icon: '📋' },
+  { key:'all', label:'All', icon:'🗺️' },
+  { key:'road', label:'Road', icon:'🛣️' },
+  { key:'water', label:'Water', icon:'💧' },
+  { key:'waste', label:'Waste', icon:'🗑️' },
+  { key:'electricity', label:'Electricity', icon:'⚡' },
+  { key:'encroachment', label:'Encroachment', icon:'🏗️' },
+  { key:'other', label:'Other', icon:'📋' },
 ];
 const STATUSES = [
-  { key: '', label: 'All Status' },
-  { key: 'pending', label: '🔴 Pending' },
-  { key: 'assigned', label: '🔵 Assigned' },
-  { key: 'in_progress', label: '🟡 In Progress' },
-  { key: 'resolved', label: '🟢 Resolved' },
+  { key:'', label:'All Status' },
+  { key:'pending', label:'🔴 Pending' },
+  { key:'assigned', label:'🔵 Assigned' },
+  { key:'in_progress', label:'🟡 In Progress' },
+  { key:'resolved', label:'🟢 Resolved' },
 ];
 
 export default function FeedPage() {
@@ -44,34 +44,30 @@ export default function FeedPage() {
 
   return (
     <div className="page">
-      <div className="feed-header animate-fade-up">
+      {/* Header */}
+      <div className="page-header fade-up">
         <div>
-          <h1 className="feed-title">Civic Issues</h1>
-          <p className="feed-sub">📍 Kolkata, West Bengal &nbsp;·&nbsp; {total} reports</p>
+          <h1>Civic Issues</h1>
+          <p>📍 Kolkata, West Bengal · {total} active reports</p>
         </div>
-        <button className="btn btn-primary" onClick={() => navigate('/report')}>
-          ➕ Report Issue
-        </button>
+        <button className="btn btn-primary" onClick={() => navigate('/report')}>➕ Report Issue</button>
       </div>
 
-      <div className="map-box animate-fade-up delay-1" style={{ marginBottom: '1.25rem' }}>
-        📍 Map view — add Google Maps API key to enable
+      {/* Map */}
+      <div className="map-box fade-up d1" style={{ marginBottom:'1.25rem' }}>
+        📍 Map view — add Google Maps API key to enable live heatmap
       </div>
 
-      <div className="feed-search-wrap animate-fade-up delay-1">
+      {/* Search */}
+      <div className="feed-search-wrap fade-up d1" style={{ marginBottom:'1rem' }}>
         <span className="feed-search-icon">🔍</span>
-        <input
-          className="feed-search"
-          placeholder="Search issues by title or description…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-        />
-        {search && (
-          <button className="feed-search-clear" onClick={() => setSearch('')}>✕</button>
-        )}
+        <input className="feed-search" placeholder="Search issues by title, area or description…"
+          value={search} onChange={e => setSearch(e.target.value)} />
+        {search && <button className="feed-search-clear" onClick={() => setSearch('')}>✕</button>}
       </div>
 
-      <div className="pills animate-fade-up delay-2" style={{ marginTop: '1rem' }}>
+      {/* Category pills */}
+      <div className="pills fade-up d2">
         {CATS.map(c => (
           <button key={c.key} className={`pill ${cat === c.key ? 'active' : ''}`} onClick={() => setCat(c.key)}>
             {c.icon} {c.label}
@@ -79,7 +75,8 @@ export default function FeedPage() {
         ))}
       </div>
 
-      <div className="pills animate-fade-up delay-2">
+      {/* Status pills */}
+      <div className="pills fade-up d2">
         {STATUSES.map(s => (
           <button key={s.key} className={`pill ${status === s.key ? 'active' : ''}`} onClick={() => setStatus(s.key)}>
             {s.label}
@@ -87,7 +84,8 @@ export default function FeedPage() {
         ))}
       </div>
 
-      <div className="card animate-fade-up delay-3">
+      {/* Issues */}
+      <div className="card fade-up d3">
         {busy ? <Spinner /> : issues.length === 0
           ? <EmptyState icon="🗺️" title="No issues found" sub="Try changing the filters or be the first to report!"
               action={<button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>Report an issue</button>} />

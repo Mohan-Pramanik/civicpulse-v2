@@ -9,31 +9,37 @@ export default function TrackPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    getMyIssues().then(r => setIssues(r.data.issues)).catch(()=>{}).finally(()=>setBusy(false));
+    getMyIssues().then(r => setIssues(r.data.issues || [])).catch(() => {}).finally(() => setBusy(false));
   }, []);
 
   if (busy) return <div className="page"><Spinner /></div>;
 
   return (
     <div className="page page-narrow">
-      <h1 style={{ fontSize:20, fontWeight:700, marginBottom:4 }}>My Reports</h1>
-      <p style={{ fontSize:13, color:'var(--text-muted)', marginBottom:'1.5rem' }}>
-        {issues.length} issue{issues.length!==1?'s':''} submitted by you
-      </p>
+      <div className="page-header fade-up">
+        <div>
+          <h1>My Reports</h1>
+          <p>{issues.length} issue{issues.length !== 1 ? 's' : ''} submitted by you</p>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>➕ New Report</button>
+      </div>
 
       {issues.length === 0 ? (
-        <div className="card">
-          <EmptyState icon="📭" title="No reports yet" sub="You haven't reported any issues."
+        <div className="card fade-up d1">
+          <EmptyState icon="📭" title="No reports yet" sub="You haven't reported any issues yet."
             action={<button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>Report an Issue</button>} />
         </div>
-      ) : issues.map(issue => (
-        <div key={issue._id} className="card" style={{ cursor:'pointer' }} onClick={() => navigate(`/issues/${issue._id}`)}>
-          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+      ) : issues.map((issue, i) => (
+        <div key={issue._id} className="card fade-up" style={{ cursor:'pointer', animationDelay:`${i * 0.06}s`, marginBottom:'1rem' }}
+          onClick={() => navigate(`/issues/${issue._id}`)}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:12 }}>
             <div style={{ flex:1, minWidth:0 }}>
-              <div style={{ fontSize:11, color:'var(--green)', fontWeight:600, marginBottom:3 }}>{issue.ticketId}</div>
-              <div style={{ fontSize:15, fontWeight:600 }}>{issue.title}</div>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
-                📍 {issue.location?.address} {issue.location?.area && `· ${issue.location.area}`}
+              <div style={{ fontSize:11, fontWeight:700, fontFamily:'var(--f-display)', background:'linear-gradient(135deg, #6366f1, #22c55e)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', marginBottom:4 }}>
+                {issue.ticketId}
+              </div>
+              <div style={{ fontSize:15, fontWeight:700, color:'var(--text-primary)', fontFamily:'var(--f-display)' }}>{issue.title}</div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>
+                📍 {issue.location?.address}{issue.location?.area ? ` · ${issue.location.area}` : ''}
               </div>
             </div>
             <StatusBadge status={issue.status} />
@@ -41,9 +47,9 @@ export default function TrackPage() {
 
           <IssueProgress status={issue.status} />
 
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:10 }}>
-            <span style={{ background:'var(--bg)', borderRadius:20, padding:'2px 9px', fontSize:12, color:'var(--text-secondary)' }}>
-              {issue.department}
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginTop:12, alignItems:'center' }}>
+            <span style={{ background:'rgba(255,255,255,0.06)', border:'1px solid var(--glass-border)', borderRadius:20, padding:'3px 11px', fontSize:12, color:'var(--text-secondary)' }}>
+              🏛️ {issue.department}
             </span>
             {issue.isOverdue && <span className="badge badge-red">⚠ Overdue</span>}
             <span style={{ fontSize:12, color:'var(--text-muted)', marginLeft:'auto' }}>
