@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIssues } from '../../api';
 import IssueCard from '../../components/issues/IssueCard';
-import { Spinner, EmptyState } from '../../components/common';
+import MapView from '../../components/common/MapView';
+import { Spinner, EmptyState, SkeletonCard } from '../../components/common';
 
 const CATS = [
   { key:'all', label:'All', icon:'🗺️' },
@@ -22,12 +23,13 @@ const STATUSES = [
 ];
 
 export default function FeedPage() {
-  const [issues, setIssues] = useState([]);
-  const [total,  setTotal]  = useState(0);
-  const [cat,    setCat]    = useState('all');
-  const [status, setStatus] = useState('');
-  const [search, setSearch] = useState('');
-  const [busy,   setBusy]   = useState(true);
+  const [issues,  setIssues]  = useState([]);
+  const [total,   setTotal]   = useState(0);
+  const [cat,     setCat]     = useState('all');
+  const [status,  setStatus]  = useState('');
+  const [search,  setSearch]  = useState('');
+  const [busy,    setBusy]    = useState(true);
+  const [showMap, setShowMap] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,18 +52,26 @@ export default function FeedPage() {
           <h1>Civic Issues</h1>
           <p>📍 Kolkata, West Bengal · {total} active reports</p>
         </div>
-        <button className="btn btn-primary" onClick={() => navigate('/report')}>➕ Report Issue</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className={`btn btn-sm ${showMap ? 'btn-primary' : 'btn-glass'}`} onClick={() => setShowMap(m => !m)}>
+            {showMap ? '📋 List View' : '🗺️ Map View'}
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>➕ Report Issue</button>
+        </div>
       </div>
 
-      {/* Map */}
-      <div className="map-box fade-up d1" style={{ marginBottom:'1.25rem' }}>
-        📍 Map view — add Google Maps API key to enable live heatmap
-      </div>
+      {/* Map View */}
+      {showMap && (
+        <div className="card fade-up d1" style={{ marginBottom: '1.25rem' }}>
+          <div className="section-label" style={{ marginBottom: 12 }}>🗺️ Issue Map</div>
+          <MapView height={420} />
+        </div>
+      )}
 
       {/* Search */}
-      <div className="feed-search-wrap fade-up d1" style={{ marginBottom:'1rem' }}>
+      <div className="feed-search-wrap fade-up d1" style={{ marginBottom: '1rem' }}>
         <span className="feed-search-icon">🔍</span>
-        <input className="feed-search" placeholder="Search issues by title, area or description…"
+        <input className="feed-search" placeholder="Search by title, area or description…"
           value={search} onChange={e => setSearch(e.target.value)} />
         {search && <button className="feed-search-clear" onClick={() => setSearch('')}>✕</button>}
       </div>
@@ -86,10 +96,12 @@ export default function FeedPage() {
 
       {/* Issues */}
       <div className="card fade-up d3">
-        {busy ? <Spinner /> : issues.length === 0
-          ? <EmptyState icon="🗺️" title="No issues found" sub="Try changing the filters or be the first to report!"
-              action={<button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>Report an issue</button>} />
-          : issues.map(i => <IssueCard key={i._id} issue={i} />)
+        {busy
+          ? [1,2,3].map(i => <SkeletonCard key={i} />)
+          : issues.length === 0
+            ? <EmptyState icon="🗺️" title="No issues found" sub="Try changing the filters or be the first to report!"
+                action={<button className="btn btn-primary btn-sm" onClick={() => navigate('/report')}>Report an issue</button>} />
+            : issues.map(i => <IssueCard key={i._id} issue={i} />)
         }
       </div>
     </div>

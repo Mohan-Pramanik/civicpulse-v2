@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAdminUsers, updateUser, deleteUser } from '../../api';
+import { getAdminUsers, updateUser, deleteUser, createUser } from '../../api';
 import { Spinner } from '../../components/common';
 import { useToast } from '../../context/ToastContext';
 
@@ -9,28 +9,62 @@ const DEPTS = [
   'KMC Enforcement Team', 'KMC General Grievance Cell'
 ];
 
+const DEPT_CREDENTIALS = [
+  { dept:'Public Works Department (PWD)',   head:'pwd@civicpulse.in',         officer:'pwd.officer@civicpulse.in',          pass:'pwd@123 / pwd.officer@123' },
+  { dept:'KMC Water Supply Department',     head:'water@civicpulse.in',       officer:'water.officer@civicpulse.in',        pass:'water@123 / water.officer@123' },
+  { dept:'Sanitation & Solid Waste Dept',   head:'sanitation@civicpulse.in',  officer:'sanitation.officer@civicpulse.in',   pass:'sanitation@123 / sanitation.officer@123' },
+  { dept:'CESC / KMC Lighting Division',    head:'electricity@civicpulse.in', officer:'electricity.officer@civicpulse.in',  pass:'electricity@123 / electricity.officer@123' },
+  { dept:'KMC Enforcement Team',            head:'enforcement@civicpulse.in', officer:'enforcement.officer@civicpulse.in',  pass:'enforcement@123 / enforcement.officer@123' },
+  { dept:'KMC General Grievance Cell',      head:'grievance@civicpulse.in',   officer:'grievance.officer@civicpulse.in',    pass:'grievance@123 / grievance.officer@123' },
+];
+
 export default function AdminUsers() {
-  const [users,   setUsers]   = useState([]);
-  const [busy,    setBusy]    = useState(true);
-  const [editing, setEditing] = useState(null);
+  const [users,     setUsers]     = useState([]);
+  const [busy,      setBusy]      = useState(true);
+  const [editing,   setEditing]   = useState(null);
+  const [creating,  setCreating]  = useState(false);
+  const [newUser,   setNewUser]   = useState({ name:'', email:'', password:'', role:'department', department:'' });
+  const [showCreds, setShowCreds] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    getAdminUsers().then(r => setUsers(r.data.data||[])).catch(()=>{}).finally(()=>setBusy(false));
-  }, []);
+  const load = () => {
+    setBusy(true);
+    getAdminUsers().then(r => setUsers(r.data.data || [])).catch(() => {}).finally(() => setBusy(false));
+  };
+  useEffect(load, []);
 
   const saveEdit = async () => {
     try {
-      const r = await updateUser(editing._id, { role: editing.role, department: editing.department, isActive: editing.isActive });
+      const r = await updateUser(editing._id, { role:editing.role, department:editing.department, isActive:editing.isActive });
       setUsers(u => u.map(x => x._id===editing._id ? r.data.user : x));
       setEditing(null); toast('User updated ✓');
-    } catch { toast('Update failed', 'error'); }
+    } catch { toast('Update failed','error'); }
   };
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Delete user "${name}"?`)) return;
     try { await deleteUser(id); setUsers(u => u.filter(x=>x._id!==id)); toast('User deleted'); }
-    catch { toast('Delete failed', 'error'); }
+    catch { toast('Delete failed','error'); }
+  };
+
+  const handleCreate = async e => {
+    e.preventDefault();
+    try {
+      const r = await createUser(newUser);
+      setUsers(u => [r.data.user, ...u]);
+      setCreating(false);
+      setNewUser({ name:'', email:'', password:'', role:'department', department:'' });
+      toast('User created ✓');
+    } catch (err) { toast(err.response?.data?.message || 'Failed','error'); }
+  };
+
+  const handleSeedAll = async () => {
+    try {
+      const r = await fetch(`${process.env.REACT_APP_API_URL?.replace('/api','')}/api/auth/seed-departments`);
+      const data = await r.json();
+      toast(`✅ Created ${data.accounts?.length || 0} department accounts`);
+      load();
+    } catch { toast('Seed failed','error'); }
   };
 
   const roleColor = r => ({ admin:'badge-red', department:'badge-blue', citizen:'badge-green' }[r]||'badge-gray');
@@ -39,8 +73,46 @@ export default function AdminUsers() {
     <div className="page">
       <div className="page-header fade-up">
         <div><h1>User Management</h1><p>{users.length} registered users</p></div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-glass btn-sm" onClick={() => setShowCreds(c=>!c)}>🔑 Dept Credentials</button>
+          <button className="btn btn-glass btn-sm" onClick={handleSeedAll} title="Creates all department + officer accounts">🌱 Seed Departments</button>
+          <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>➕ Add User</button>
+        </div>
       </div>
 
+      {/* Department Credentials Reference */}
+      {showCreds && (
+        <div className="card fade-up" style={{ marginBottom:'1rem', background:'rgba(99,102,241,0.05)', borderColor:'rgba(99,102,241,0.2)' }}>
+          <div className="section-label">🔑 Department Login Credentials</div>
+          <div style={{ overflowX:'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Department</th>
+                  <th>Head Email</th>
+                  <th>Officer Email</th>
+                  <th>Password</th>
+                </tr>
+              </thead>
+              <tbody>
+                {DEPT_CREDENTIALS.map((d,i) => (
+                  <tr key={i}>
+                    <td style={{ fontSize:12, color:'var(--text-primary)', fontWeight:600 }}>{d.dept}</td>
+                    <td style={{ fontSize:11, color:'#818cf8', fontFamily:'monospace' }}>{d.head}</td>
+                    <td style={{ fontSize:11, color:'#06b6d4', fontFamily:'monospace' }}>{d.officer}</td>
+                    <td style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'monospace' }}>{d.pass}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:10 }}>
+            💡 Click "Seed Departments" above to auto-create all these accounts in the database.
+          </div>
+        </div>
+      )}
+
+      {/* Users Table */}
       <div className="card fade-up d1">
         {busy ? <Spinner /> : (
           <div className="table-wrap">
@@ -64,13 +136,13 @@ export default function AdminUsers() {
                     <td style={{ fontSize:13 }}>{u.email}</td>
                     <td className="hide-mobile" style={{ fontSize:13 }}>{u.phone||'—'}</td>
                     <td><span className={`badge ${roleColor(u.role)}`}>{u.role}</span></td>
-                    <td className="hide-mobile" style={{ fontSize:12 }}>{u.department||'—'}</td>
+                    <td className="hide-mobile" style={{ fontSize:12, maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.department||'—'}</td>
                     <td className="hide-mobile" style={{ fontSize:12 }}>{new Date(u.createdAt).toLocaleDateString()}</td>
-                    <td><span className={`badge ${u.isActive?'badge-green':'badge-gray'}`}>{u.isActive?'Active':'Inactive'}</span></td>
+                    <td><span className={`badge ${u.isActive!==false?'badge-green':'badge-gray'}`}>{u.isActive!==false?'Active':'Inactive'}</span></td>
                     <td>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button className="btn btn-glass btn-sm" onClick={()=>setEditing({...u})}>Edit</button>
-                        <button className="btn btn-danger btn-sm" onClick={()=>handleDelete(u._id,u.name)}>Del</button>
+                        <button className="btn btn-glass btn-sm" onClick={() => setEditing({...u})}>Edit</button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(u._id,u.name)}>Del</button>
                       </div>
                     </td>
                   </tr>
@@ -81,14 +153,61 @@ export default function AdminUsers() {
         )}
       </div>
 
-      {/* Edit modal */}
+      {/* Create User Modal */}
+      {creating && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, padding:'1rem' }}
+          onClick={e => e.target===e.currentTarget && setCreating(false)}>
+          <div className="card scale-in" style={{ width:'100%', maxWidth:460, background:'rgba(15,23,42,0.98)', border:'1px solid var(--glass-border)', boxShadow:'var(--s-xl)' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
+              <h2 style={{ fontSize:16, fontWeight:800, fontFamily:'var(--f-display)', color:'var(--text-primary)' }}>Create User Account</h2>
+              <button className="btn btn-ghost btn-sm" onClick={() => setCreating(false)}>✕</button>
+            </div>
+            <form onSubmit={handleCreate}>
+              <div className="form-group">
+                <label className="form-label">Full name</label>
+                <input className="form-control" value={newUser.name} onChange={e=>setNewUser(p=>({...p,name:e.target.value}))} required placeholder="e.g. Rajesh Kumar" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input className="form-control" type="email" value={newUser.email} onChange={e=>setNewUser(p=>({...p,email:e.target.value}))} required placeholder="e.g. rajesh@civicpulse.in" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Password</label>
+                <input className="form-control" type="password" value={newUser.password} onChange={e=>setNewUser(p=>({...p,password:e.target.value}))} required placeholder="min 6 characters" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Role</label>
+                <select className="form-control" value={newUser.role} onChange={e=>setNewUser(p=>({...p,role:e.target.value}))}>
+                  <option value="citizen">Citizen</option>
+                  <option value="department">Department Officer</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              {newUser.role==='department' && (
+                <div className="form-group">
+                  <label className="form-label">Department</label>
+                  <select className="form-control" value={newUser.department} onChange={e=>setNewUser(p=>({...p,department:e.target.value}))} required>
+                    {DEPTS.map(d=><option key={d} value={d}>{d||'Select department…'}</option>)}
+                  </select>
+                </div>
+              )}
+              <div style={{ display:'flex', gap:8 }}>
+                <button type="submit" className="btn btn-primary">Create Account</button>
+                <button type="button" className="btn btn-glass" onClick={() => setCreating(false)}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
       {editing && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:300, padding:'1rem' }}
           onClick={e => e.target===e.currentTarget && setEditing(null)}>
-          <div className="card scale-in" style={{ width:'100%', maxWidth:440, background:'rgba(15,23,42,0.98)', border:'1px solid var(--glass-border)', boxShadow:'var(--s-xl), 0 0 40px rgba(99,102,241,0.1)' }}>
+          <div className="card scale-in" style={{ width:'100%', maxWidth:440, background:'rgba(15,23,42,0.98)', border:'1px solid var(--glass-border)', boxShadow:'var(--s-xl)' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1.25rem' }}>
               <h2 style={{ fontSize:16, fontWeight:800, fontFamily:'var(--f-display)', color:'var(--text-primary)' }}>Edit: {editing.name}</h2>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setEditing(null)}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setEditing(null)}>✕</button>
             </div>
             <div className="form-group">
               <label className="form-label">Role</label>
@@ -102,20 +221,20 @@ export default function AdminUsers() {
               <div className="form-group">
                 <label className="form-label">Department</label>
                 <select className="form-control" value={editing.department||''} onChange={e=>setEditing(x=>({...x,department:e.target.value}))}>
-                  {DEPTS.map(d=><option key={d} value={d}>{d||'Select department…'}</option>)}
+                  {DEPTS.map(d=><option key={d} value={d}>{d||'Select…'}</option>)}
                 </select>
               </div>
             )}
             <div className="form-group">
-              <label className="form-label">Account Status</label>
-              <select className="form-control" value={editing.isActive?'true':'false'} onChange={e=>setEditing(x=>({...x,isActive:e.target.value==='true'}))}>
+              <label className="form-label">Status</label>
+              <select className="form-control" value={editing.isActive!==false?'true':'false'} onChange={e=>setEditing(x=>({...x,isActive:e.target.value==='true'}))}>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </select>
             </div>
             <div style={{ display:'flex', gap:8 }}>
               <button className="btn btn-primary" onClick={saveEdit}>Save Changes</button>
-              <button className="btn btn-glass" onClick={()=>setEditing(null)}>Cancel</button>
+              <button className="btn btn-glass" onClick={() => setEditing(null)}>Cancel</button>
             </div>
           </div>
         </div>

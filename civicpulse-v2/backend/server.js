@@ -16,43 +16,59 @@ const errorHandler   = require('./middleware/errorHandler');
 const app = express();
 
 // ── Security ────────────────────────────────────────────────
-app.use(helmet());
+app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
 app.use(mongoSanitize());
 app.use(compression());
 
-// ── Rate Limiting ────────────────────────────────────────────
+// ── Rate Limiting ─────────────────────────────────────────────
+// INCREASED limits to prevent "Too many requests" errors
 const limiter = rateLimit({
-  windowMs: (parseInt(process.env.RATE_LIMIT_WINDOW) || 15) * 60 * 1000,
-  max:       parseInt(process.env.RATE_LIMIT_MAX) || 100,
-  message:   { success: false, message: 'Too many requests, please try again later.' }
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500,                  // 500 requests per window (was 100)
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: 'Too many requests, please try again later.' },
+  skip: (req) => req.path === '/api/health', // skip health checks
 });
+
+// Auth-specific limiter (more lenient for login)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 50, // 50 login attempts per 15 min
+  message: { success: false, message: 'Too many login attempts, please try again in 15 minutes.' },
+});
+
 app.use('/api/', limiter);
+app.use('/api/auth/login', authLimiter);
 
 // ── CORS ─────────────────────────────────────────────────────
-// app.use(cors({
-//   origin: [process.env.CLIENT_URL || 'http://localhost:3000'],
-//   credentials: true
-// }));
-
 app.use(cors({
-  origin: true,
-  credentials: true
+  origin: true, // Allow all origins (set specific URL in production via CLIENT_URL)
+  credentials: true,
+  methods: ['GET','POST','PUT','DELETE','PATCH','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization'],
 }));
 
 // ── Body Parsing ─────────────────────────────────────────────
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // ── Logging ──────────────────────────────────────────────────
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// ── Static Files ─────────────────────────────────────────────
+// ── Static Files (uploads) ───────────────────────────────────
 const uploadDir = process.env.UPLOAD_PATH || './uploads';
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 if (!fs.existsSync('./logs'))   fs.mkdirSync('./logs',   { recursive: true });
-app.use('/uploads', express.static(path.join(__dirname, uploadDir)));
+
+// Serve uploads with CORS headers so frontend can load images
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.join(__dirname, uploadDir)));
 
 // ── Routes ───────────────────────────────────────────────────
 app.use('/api/auth',   require('./routes/auth'));
@@ -64,7 +80,7 @@ app.get('/api/health', (req, res) => res.json({
   status: 'OK', env: process.env.NODE_ENV, time: new Date()
 }));
 
-// ── 404 ───────────────────────────────────────────────────────
+// ── 404 ──────────────────────────────────────────────────────
 app.use((req, res) => res.status(404).json({ success: false, message: 'Route not found' }));
 
 // ── Error Handler ─────────────────────────────────────────────
