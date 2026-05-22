@@ -1,9 +1,7 @@
 import axios from 'axios';
 
 const BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
-
-// Image base URL (backend root, not /api)
-export const IMG_BASE = (process.env.REACT_APP_API_URL || 'http://localhost:5000/api').replace('/api', '');
+export const IMG_BASE = BASE.replace('/api', '');
 
 const api = axios.create({ baseURL: BASE });
 
@@ -24,11 +22,13 @@ api.interceptors.response.use(
   }
 );
 
-// Helper to build full image URL
+// Builds full image URL from a path like /uploads/xxx.jpg
 export const getImageUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  return `${IMG_BASE}${path}`;
+  // ensure leading slash
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${IMG_BASE}${p}`;
 };
 
 // Auth
@@ -44,10 +44,8 @@ export const getIssue       = id => api.get(`/issues/${id}`);
 export const createIssue    = d  => api.post('/issues', d, { headers: { 'Content-Type': 'multipart/form-data' } });
 export const upvoteIssue    = id => api.put(`/issues/${id}/upvote`);
 export const updateStatus   = (id, d) => api.put(`/issues/${id}/status`, d);
-export const assignIssue    = (id, d) => api.put(`/issues/${id}/assign`, d);
 export const addComment     = (id, d) => api.post(`/issues/${id}/comments`, d);
 export const rateIssue      = (id, d) => api.put(`/issues/${id}/rate`, d);
-export const deleteIssue    = id => api.delete(`/issues/${id}`);
 export const getMyIssues    = () => api.get('/issues/mine');
 
 // Admin

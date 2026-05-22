@@ -1,24 +1,17 @@
 import React from 'react';
 
-const STATUS_COLOR = {
-  pending:     '#94a3b8',
-  assigned:    '#38bdf8',
-  in_progress: '#fbbf24',
-  resolved:    '#4ade80',
-  closed:      '#6b7280',
-  rejected:    '#f87171',
-};
-const STATUS_PCT = { pending:10, assigned:30, in_progress:65, resolved:100, closed:100, rejected:0 };
+const STATUS_COLOR = { pending:'#94a3b8', assigned:'#38bdf8', in_progress:'#fbbf24', resolved:'#4ade80', closed:'#6b7280', rejected:'#f87171' };
+const STATUS_PCT   = { pending:10, assigned:30, in_progress:65, resolved:100, closed:100, rejected:0 };
 
 export function StatusBadge({ status }) {
   const map = { pending:'badge-gray', assigned:'badge-blue', in_progress:'badge-amber', resolved:'badge-green', closed:'badge-gray', rejected:'badge-red' };
-  return <span className={`badge ${map[status] || 'badge-gray'}`}>{status?.replace(/_/g,' ')}</span>;
+  return <span className={`badge ${map[status]||'badge-gray'}`}>{status?.replace(/_/g,' ')}</span>;
 }
 
 export function PriorityBadge({ priority }) {
-  const map = { low:'badge-gray', medium:'badge-blue', high:'badge-amber', critical:'badge-red' };
+  const map  = { low:'badge-gray', medium:'badge-blue', high:'badge-amber', critical:'badge-red' };
   const glow = { critical:'rgba(239,68,68,0.4)', high:'rgba(245,158,11,0.3)', medium:'rgba(6,182,212,0.25)', low:'rgba(34,197,94,0.2)' };
-  return <span className={`badge ${map[priority] || 'badge-gray'}`} style={{ boxShadow: `0 0 10px ${glow[priority] || 'transparent'}` }}>{priority}</span>;
+  return <span className={`badge ${map[priority]||'badge-gray'}`} style={{ boxShadow:`0 0 10px ${glow[priority]||'transparent'}` }}>{priority}</span>;
 }
 
 export function IssueProgress({ status }) {
@@ -28,15 +21,15 @@ export function IssueProgress({ status }) {
   return (
     <div>
       <div style={{ display:'flex', alignItems:'center', gap:4, marginBottom:10 }}>
-        {steps.map((s, i) => {
+        {steps.map((s,i) => {
           const done    = STATUS_PCT[status] >= STATUS_PCT[s];
           const current = status === s;
           return (
             <React.Fragment key={s}>
-              <div style={{ width:28, height:28, borderRadius:'50%', border:`2px solid ${done ? color : 'rgba(255,255,255,0.12)'}`, background: done ? color : 'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color: done ? '#000' : 'rgba(255,255,255,0.3)', boxShadow: current ? `0 0 14px ${color}` : 'none', transition:'all 0.4s', flexShrink:0 }}>
-                {done ? '✓' : i+1}
+              <div style={{ width:28, height:28, borderRadius:'50%', border:`2px solid ${done?color:'rgba(255,255,255,0.12)'}`, background:done?color:'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:done?'#000':'rgba(255,255,255,0.3)', boxShadow:current?`0 0 14px ${color}`:'none', transition:'all 0.4s', flexShrink:0 }}>
+                {done?'✓':i+1}
               </div>
-              {i < steps.length-1 && <div style={{ flex:1, height:2, background: STATUS_PCT[status] > STATUS_PCT[s] ? color : 'rgba(255,255,255,0.08)', borderRadius:2, transition:'background 0.4s' }} />}
+              {i<steps.length-1 && <div style={{ flex:1, height:2, background:STATUS_PCT[status]>STATUS_PCT[s]?color:'rgba(255,255,255,0.08)', borderRadius:2, transition:'background 0.4s' }} />}
             </React.Fragment>
           );
         })}
@@ -46,14 +39,14 @@ export function IssueProgress({ status }) {
         <span style={{ fontSize:13, fontWeight:700, color, textShadow:`0 0 10px ${color}50` }}>{pct}%</span>
       </div>
       <div className="progress">
-        <div className="progress-bar" style={{ width:`${pct}%`, background:`linear-gradient(90deg, ${color}99, ${color})` }} />
+        <div className="progress-bar" style={{ width:`${pct}%`, background:`linear-gradient(90deg,${color}99,${color})` }} />
       </div>
     </div>
   );
 }
 
 export function Spinner({ sm }) {
-  return <div className={sm ? 'spinner spinner-sm' : 'spinner'} />;
+  return <div className={sm?'spinner spinner-sm':'spinner'} />;
 }
 
 export function EmptyState({ icon, title, sub, action }) {
