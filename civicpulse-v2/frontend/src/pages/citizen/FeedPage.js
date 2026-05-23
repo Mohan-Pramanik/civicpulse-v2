@@ -1,25 +1,31 @@
+/**
+ * FeedPage.js  –  updated to use Leaflet MapView
+ * Replace:  src/pages/citizen/FeedPage.js
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getIssues } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import IssueCard from '../../components/issues/IssueCard';
-import { Spinner, EmptyState, SkeletonCard } from '../../components/common';
+import { SkeletonCard, EmptyState } from '../../components/common';
+import MapView from '../../components/common/MapView';   // ← Leaflet map
 
 const CATS = [
-  { key:'all', label:'All', icon:'🗺️' },
-  { key:'road', label:'Road', icon:'🛣️' },
-  { key:'water', label:'Water', icon:'💧' },
-  { key:'waste', label:'Waste', icon:'🗑️' },
-  { key:'electricity', label:'Electricity', icon:'⚡' },
+  { key:'all',          label:'All',          icon:'🗺️' },
+  { key:'road',         label:'Road',         icon:'🛣️' },
+  { key:'water',        label:'Water',        icon:'💧' },
+  { key:'waste',        label:'Waste',        icon:'🗑️' },
+  { key:'electricity',  label:'Electricity',  icon:'⚡' },
   { key:'encroachment', label:'Encroachment', icon:'🏗️' },
-  { key:'other', label:'Other', icon:'📋' },
+  { key:'other',        label:'Other',        icon:'📋' },
 ];
 const STATUSES = [
-  { key:'', label:'All Status' },
-  { key:'pending', label:'🔴 Pending' },
-  { key:'assigned', label:'🔵 Assigned' },
+  { key:'',            label:'All Status' },
+  { key:'pending',     label:'🔴 Pending' },
+  { key:'assigned',    label:'🔵 Assigned' },
   { key:'in_progress', label:'🟡 In Progress' },
-  { key:'resolved', label:'🟢 Resolved' },
+  { key:'resolved',    label:'🟢 Resolved' },
 ];
 
 function getGreeting() {
@@ -36,6 +42,7 @@ export default function FeedPage() {
   const [status,  setStatus]  = useState('');
   const [search,  setSearch]  = useState('');
   const [busy,    setBusy]    = useState(true);
+  const [showMap, setShowMap] = useState(true);   // toggle map / list
   const navigate  = useNavigate();
   const { user }  = useAuth();
 
@@ -78,10 +85,24 @@ export default function FeedPage() {
         </div>
       </div>
 
-      {/* Map placeholder */}
-      <div className="map-box fade-up d1" style={{ marginBottom:'1.25rem' }}>
-        📍 Map view — add <code style={{ background:'rgba(255,255,255,0.08)', padding:'1px 6px', borderRadius:4, fontSize:12 }}>REACT_APP_GOOGLE_MAPS_KEY</code> in Vercel to enable live map
+      {/* Map / List toggle */}
+      <div className="fade-up d1" style={{ display:'flex', gap:8, marginBottom:'1rem' }}>
+        <button
+          className={`btn btn-sm ${showMap ? 'btn-primary' : 'btn-glass'}`}
+          onClick={() => setShowMap(true)}
+        >🗺️ Map View</button>
+        <button
+          className={`btn btn-sm ${!showMap ? 'btn-primary' : 'btn-glass'}`}
+          onClick={() => setShowMap(false)}
+        >📋 List View</button>
       </div>
+
+      {/* Leaflet Map */}
+      {showMap && (
+        <div className="card fade-up d1" style={{ marginBottom:'1.25rem', padding:'1rem' }}>
+          <MapView height={420} />
+        </div>
+      )}
 
       {/* Search */}
       <div className="feed-search-wrap fade-up d1" style={{ marginBottom:'1rem' }}>
@@ -109,7 +130,7 @@ export default function FeedPage() {
         ))}
       </div>
 
-      {/* Issues */}
+      {/* Issue cards */}
       <div className="card fade-up d3">
         {busy
           ? [1,2,3].map(i => <SkeletonCard key={i} />)

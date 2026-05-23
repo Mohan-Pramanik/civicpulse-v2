@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createIssue } from '../../api';
 import { useToast } from '../../context/ToastContext';
+import IssueMap from '../../components/common/IssueMap';   // ← Leaflet map picker
 
 const ROUTING = {
   road:         { dept:'Public Works Department (PWD)',   eta:'3–5 working days', color:'#6366f1' },
@@ -34,7 +35,11 @@ export default function ReportPage() {
     if (!navigator.geolocation) return toast('Geolocation not supported','error');
     setLocBusy(true);
     navigator.geolocation.getCurrentPosition(
-      p => { setForm(f => ({ ...f, lat:p.coords.latitude.toFixed(5), lng:p.coords.longitude.toFixed(5) })); setLocBusy(false); toast('📡 GPS location captured'); },
+      p => {
+        setForm(f => ({ ...f, lat:p.coords.latitude.toFixed(5), lng:p.coords.longitude.toFixed(5) }));
+        setLocBusy(false);
+        toast('📡 GPS location captured');
+      },
       () => { toast('Could not get location','error'); setLocBusy(false); }
     );
   };
@@ -107,7 +112,8 @@ export default function ReportPage() {
       {error && <div className="alert alert-error fade-up">⚠️ {error}</div>}
 
       <form onSubmit={submit}>
-        {/* Step 0: Details */}
+
+        {/* ── Step 0: Details ─────────────────────────────────────────── */}
         {step === 0 && (
           <div className="card fade-up d2">
             <div className="section-label">📝 Issue Details</div>
@@ -158,7 +164,7 @@ export default function ReportPage() {
           </div>
         )}
 
-        {/* Step 1: Location */}
+        {/* ── Step 1: Location ────────────────────────────────────────── */}
         {step === 1 && (
           <div className="card fade-up d1">
             <div className="section-label">📍 Location Details</div>
@@ -190,12 +196,37 @@ export default function ReportPage() {
                 </div>
               </div>
             </div>
+
+            {/* GPS button */}
             <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:'1rem', flexWrap:'wrap' }}>
               <button type="button" className="btn btn-glass" onClick={getGPS} disabled={locBusy}>
                 {locBusy ? '📡 Getting location…' : '📡 Use My GPS Location'}
               </button>
-              {form.lat && <span style={{ fontSize:12, color:'#22c55e', display:'flex', alignItems:'center', gap:4 }}>✅ GPS: {form.lat}, {form.lng}</span>}
+              {form.lat && (
+                <span style={{ fontSize:12, color:'#22c55e', display:'flex', alignItems:'center', gap:4 }}>
+                  ✅ GPS: {form.lat}, {form.lng}
+                </span>
+              )}
             </div>
+
+            {/* ── Leaflet map picker ───────────────────────────────────── */}
+            <div style={{ marginBottom:'1rem' }}>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8, fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em' }}>
+                🖱️ Or click on the map to pin exact location
+              </div>
+              <IssueMap
+                picker
+                lat={form.lat}
+                lng={form.lng}
+                height={280}
+                onPick={(lat, lng) => {
+                  setForm(f => ({ ...f, lat, lng }));
+                  toast('📍 Location pinned on map');
+                }}
+              />
+            </div>
+            {/* ── end map picker ───────────────────────────────────────── */}
+
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button type="button" className="btn btn-glass" onClick={() => setStep(0)}>← Back</button>
               <button type="button" className="btn btn-primary" onClick={goNext}>Next: Photos →</button>
@@ -203,14 +234,12 @@ export default function ReportPage() {
           </div>
         )}
 
-        {/* Step 2: Photos & Submit */}
+        {/* ── Step 2: Photos & Submit ──────────────────────────────────── */}
         {step === 2 && (
           <div className="card fade-up d1">
             <div className="section-label">📷 Photo Evidence ({images.length}/5)</div>
 
-            {/* Camera / Gallery buttons */}
             <div style={{ display:'flex', gap:10, marginBottom:'1rem', flexWrap:'wrap' }}>
-              {/* Hidden file inputs */}
               <input ref={galleryRef} type="file" accept="image/*" multiple style={{ display:'none' }}
                 onChange={e => addFiles(e.target.files)} />
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
@@ -230,7 +259,6 @@ export default function ReportPage() {
               </button>
             </div>
 
-            {/* Image previews */}
             {previews.length > 0 && (
               <div style={{ marginBottom:'1.25rem' }}>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8, fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em' }}>
@@ -267,6 +295,7 @@ export default function ReportPage() {
               <div style={{ fontSize:14, color:'var(--text-primary)', fontWeight:700, marginBottom:6 }}>{form.title}</div>
               <div style={{ fontSize:13, color:'var(--text-muted)' }}>📂 {form.category} · ⚡ {form.priority} priority</div>
               <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>📍 {form.address}{form.area?`, ${form.area}`:''}</div>
+              {form.lat && <div style={{ fontSize:13, color:'#22c55e', marginTop:3 }}>🗺️ GPS: {form.lat}, {form.lng}</div>}
               {route && <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>🏛️ Routed to: {route.dept}</div>}
               {previews.length > 0 && <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>📷 {previews.length} photo{previews.length>1?'s':''} attached</div>}
             </div>

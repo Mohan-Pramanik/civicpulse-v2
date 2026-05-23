@@ -1,3 +1,8 @@
+/**
+ * IssueDetailPage.js  –  updated to embed IssueMap (Leaflet)
+ * Replace:  src/pages/citizen/IssueDetailPage.js
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getIssue, updateStatus, addComment, rateIssue, getImageUrl } from '../../api';
@@ -5,8 +10,16 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StatusBadge, PriorityBadge, IssueProgress, Spinner } from '../../components/common';
 import ImagePreviewModal from '../../components/common/ImagePreviewModal';
+import IssueMap from '../../components/common/IssueMap';   // ← NEW
 
-const TL_COLOR = { pending:'#94a3b8', assigned:'#38bdf8', in_progress:'#fbbf24', resolved:'#4ade80', closed:'#6b7280', rejected:'#f87171' };
+const TL_COLOR = {
+  pending:'#94a3b8', assigned:'#38bdf8', in_progress:'#fbbf24',
+  resolved:'#4ade80', closed:'#6b7280', rejected:'#f87171'
+};
+
+const PRIORITY_COLOR = {
+  critical:'#ef4444', high:'#f59e0b', medium:'#06b6d4', low:'#22c55e'
+};
 
 export default function IssueDetailPage() {
   const { id }   = useParams();
@@ -24,7 +37,10 @@ export default function IssueDetailPage() {
   const [previewIdx, setPreviewIdx] = useState(null);
 
   useEffect(() => {
-    getIssue(id).then(r => setIssue(r.data.issue)).catch(() => navigate('/')).finally(() => setBusy(false));
+    getIssue(id)
+      .then(r => setIssue(r.data.issue))
+      .catch(() => navigate('/'))
+      .finally(() => setBusy(false));
   }, [id]);
 
   const handleStatus = async () => {
@@ -62,6 +78,10 @@ export default function IssueDetailPage() {
   const isOwner = issue.reportedBy?._id === user?._id || issue.reportedBy === user?._id;
   const images  = (issue.images || []).map(getImageUrl).filter(Boolean);
 
+  // Extract GPS from issue
+  const issueLat = issue.location?.lat;
+  const issueLng = issue.location?.lng;
+
   return (
     <div className="page page-narrow">
       <button className="btn btn-glass btn-sm fade-up" style={{ marginBottom:'1rem' }} onClick={() => navigate(-1)}>← Back</button>
@@ -87,6 +107,21 @@ export default function IssueDetailPage() {
           <span>👁 {issue.viewCount} · ▲ {issue.upvoteCount}</span>
         </div>
       </div>
+
+      {/* ── Leaflet map (only if GPS coordinates exist) ───────────────────── */}
+      {issueLat && issueLng && (
+        <div className="card fade-up d2" style={{ marginBottom:'1rem' }}>
+          <div className="section-label">🗺️ Issue Location</div>
+          <IssueMap
+            lat={issueLat}
+            lng={issueLng}
+            title={issue.title}
+            address={issue.location?.address}
+            color={PRIORITY_COLOR[issue.priority] || '#6366f1'}
+            height={260}
+          />
+        </div>
+      )}
 
       {/* Photo Evidence */}
       {images.length > 0 && (
