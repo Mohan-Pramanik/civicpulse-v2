@@ -6,9 +6,13 @@
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "dev:backend": "cd backend && npm run dev",
     "dev:frontend": "cd frontend && npm start",
+    "start": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
     "seed": "cd backend && npm run seed",
     "build": "cd frontend && npm run build"
   },
   "author": "CivicPulse Team",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }
