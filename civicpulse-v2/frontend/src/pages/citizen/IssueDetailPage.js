@@ -167,7 +167,27 @@ export default function IssueDetailPage() {
   if (busy) return <div className="page"><Spinner /></div>;
   if (!issue) return null;
 
-  const isAdmin  = user?.role === 'admin' || user?.role === 'department';
+  // True admin — sees everything, can update anything
+  const isSuperAdmin = user?.role === 'admin';
+
+  // Dept HEAD — can see/update issues belonging to their own department only
+  const isDeptHead =
+    user?.role === 'department' &&
+    user?.isHead === true &&
+    issue.department === user?.department;
+
+  // Field OFFICER — can see/update only issues assigned specifically to them
+  const isAssignedOfficer =
+    user?.role === 'department' &&
+    user?.isHead === false &&
+    (issue.assignedTo?._id === user?._id || issue.assignedTo === user?._id);
+
+  // Umbrella flag used for "show citizen details / officer panel" sections
+  const isAdmin = isSuperAdmin || isDeptHead || isAssignedOfficer;
+
+  // Controls whether the Update Status panel is visible
+  const canUpdateStatus = isSuperAdmin || isDeptHead || isAssignedOfficer;
+
   const isOwner  = issue.reportedBy?._id === user?._id || issue.reportedBy === user?._id;
   const images   = (issue.images || []).map(getImageUrl).filter(Boolean);
   const reporter = issue.reportedBy;
@@ -350,7 +370,7 @@ export default function IssueDetailPage() {
       )}
 
       {/* ── Admin / Officer status update ── */}
-      {isAdmin && (
+      {canUpdateStatus && (
         <div className="card fade-up d3">
           <div className="section-label">🛠️ Update Status</div>
           <div className="form-group">

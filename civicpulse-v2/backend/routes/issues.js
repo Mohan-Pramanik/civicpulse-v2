@@ -11,8 +11,9 @@ const { paginated, success } = require('../utils/response');
 
 // GET /api/issues
 router.get('/', asyncHandler(async (req, res) => {
-  const { category, status, priority, area, department, search, page = 1, limit = 20, sort = '-createdAt' } = req.query;
+  const { category, status, priority, area, department, search, assignedTo, page = 1, limit = 20, sort = '-createdAt' } = req.query;
   const filter = {};
+  if (assignedTo) filter.assignedTo = assignedTo;
   if (category)   filter.category = category;
   if (status)     filter.status   = status;
   if (priority)   filter.priority = priority;
@@ -82,7 +83,7 @@ router.put('/:id/upvote', protect, asyncHandler(async (req, res) => {
   success(res, { upvotes: issue.upvotes.length, voted: idx === -1 });
 }));
 
-// PUT /api/issues/:id/status  (admin/department)
+// PUT /api/issues/:id/status  (admin / department)
 router.put('/:id/status', protect, authorize('admin','department'), upload.single('proofImage'), asyncHandler(async (req, res) => {
   const { status, message } = req.body;
 
@@ -92,6 +93,20 @@ router.put('/:id/status', protect, authorize('admin','department'), upload.singl
 
   const issue = await Issue.findById(req.params.id).populate('reportedBy','email name');
   if (!issue) throw new ApiError('Issue not found', 404);
+
+  // Enforce department-level permission:
+  // - Department HEAD: may only update issues routed to their department.
+  // - Field OFFICER (isHead: false): may only update issues assigned specifically to them.
+  if (req.user.role === 'department') {
+    if (req.user.isHead) {
+      if (issue.department !== req.user.department)
+        throw new ApiError('You can only update issues assigned to your department', 403);
+    } else {
+      const assignedId = issue.assignedTo ? issue.assignedTo.toString() : null;
+      if (assignedId !== req.user._id.toString())
+        throw new ApiError('You can only update issues assigned to you', 403);
+    }
+  }
 
   const proofImage = req.file ? (req.file.path || `/uploads/${req.file.filename}`) : null;
 

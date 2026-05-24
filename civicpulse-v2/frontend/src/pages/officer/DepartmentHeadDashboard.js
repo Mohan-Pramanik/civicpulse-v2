@@ -1,12 +1,100 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getAdminIssues, getDeptStats, assignOfficer, updateStatus, getMyOfficers, createOfficer, getImageUrl } from '../../api';
+import { getAdminIssues, getDeptStats, assignOfficer, getMyOfficers, createOfficer, getImageUrl } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Spinner, StatusBadge, PriorityBadge, SkeletonCard } from '../../components/common';
 import ImagePreviewModal from '../../components/common/ImagePreviewModal';
+import api from '../../api';
 
 const PRIO_COLOR = { critical:'#ef4444', high:'#f59e0b', medium:'#06b6d4', low:'#22c55e' };
+
+/* ── Resolve Modal — proof image required ──────────────────────────────────── */
+function ResolveModal({ issue, onClose, onResolved }) {
+  const [note,    setNote]    = useState('Issue has been resolved.');
+  const [file,    setFile]    = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [busy,    setBusy]    = useState(false);
+  const [err,     setErr]     = useState('');
+  const fileRef = useRef(null);
+  const { toast } = useToast();
+
+  const pickFile = f => {
+    if (!f) return;
+    setFile(f);
+    const r = new FileReader();
+    r.onload = e => setPreview(e.target.result);
+    r.readAsDataURL(f);
+  };
+
+  const submit = async () => {
+    if (!file) { setErr('Proof image is required.'); return; }
+    setBusy(true); setErr('');
+    try {
+      const fd = new FormData();
+      fd.append('status',     'resolved');
+      fd.append('message',    note);
+      fd.append('proofImage', file);
+      await api.put(`/issues/${issue._id}/status`, fd, { headers:{ 'Content-Type':'multipart/form-data' } });
+      toast(`✅ ${issue.ticketId} resolved with proof!`);
+      onResolved(issue._id);
+      onClose();
+    } catch (e) { setErr(e.response?.data?.message || 'Failed to resolve'); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(10px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
+      onClick={onClose}>
+      <div style={{ background:'var(--bg-card)', border:'1px solid var(--glass-border)', borderRadius:'var(--r)', padding:'1.75rem', width:'100%', maxWidth:460, boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem' }}>
+          <div>
+            <div style={{ fontFamily:'var(--f-display)', fontSize:17, fontWeight:800, color:'var(--text-primary)' }}>✅ Resolve Issue</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{issue.ticketId}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:20, cursor:'pointer' }}>✕</button>
+        </div>
+        {err && <div className="alert alert-error" style={{ marginBottom:'1rem' }}>⚠️ {err}</div>}
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
+            📷 Proof Image <span style={{ color:'#ef4444' }}>*</span>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*"
+            style={{ position:'absolute', width:1, height:1, opacity:0, pointerEvents:'none' }}
+            onChange={e => pickFile(e.target.files[0])} />
+          {preview ? (
+            <div style={{ position:'relative', borderRadius:10, overflow:'hidden', border:'2px solid rgba(34,197,94,0.4)' }}>
+              <img src={preview} alt="proof" style={{ width:'100%', height:160, objectFit:'cover', display:'block' }} />
+              <button onClick={() => { setFile(null); setPreview(null); }}
+                style={{ position:'absolute', top:8, right:8, background:'rgba(239,68,68,0.85)', border:'none', borderRadius:'50%', width:28, height:28, color:'#fff', fontSize:14, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:700 }}>✕</button>
+              <div style={{ position:'absolute', bottom:8, left:8, background:'rgba(0,0,0,0.6)', borderRadius:6, padding:'3px 10px', fontSize:11, color:'#4ade80', fontWeight:600 }}>✅ Proof attached</div>
+            </div>
+          ) : (
+            <div onClick={() => { if(fileRef.current){ fileRef.current.value=''; fileRef.current.click(); } }}
+              style={{ border:'2px dashed rgba(34,197,94,0.3)', borderRadius:10, padding:'1.5rem', textAlign:'center', cursor:'pointer', background:'rgba(34,197,94,0.04)', transition:'all 0.2s' }}
+              onMouseOver={e => { e.currentTarget.style.borderColor='rgba(34,197,94,0.6)'; e.currentTarget.style.background='rgba(34,197,94,0.08)'; }}
+              onMouseOut={e  => { e.currentTarget.style.borderColor='rgba(34,197,94,0.3)'; e.currentTarget.style.background='rgba(34,197,94,0.04)'; }}>
+              <div style={{ fontSize:28, marginBottom:6 }}>📷</div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text-secondary)' }}>Click to upload proof of resolution</div>
+            </div>
+          )}
+        </div>
+        <div className="form-group">
+          <label className="form-label">Message to citizen</label>
+          <textarea className="form-control" rows={2} value={note} onChange={e => setNote(e.target.value)} />
+        </div>
+        <div style={{ display:'flex', gap:8 }}>
+          <button className="btn btn-glass" style={{ flex:1 }} onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" style={{ flex:2, background:'linear-gradient(135deg,#22c55e,#16a34a)', boxShadow:'0 4px 16px rgba(34,197,94,0.35)' }}
+            onClick={submit} disabled={busy || !file}>
+            {busy ? <><span className="spinner-sm" style={{ borderTopColor:'#fff', borderColor:'rgba(255,255,255,.2)' }} /> Resolving…</> : '✅ Confirm Resolution'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ── Create Officer Modal ──────────────────────────────────────────────────── */
 function CreateOfficerModal({ department, onClose, onCreated }) {
@@ -95,6 +183,7 @@ export default function DepartmentHeadDashboard() {
   const [assignMap, setAssignMap] = useState({});
   const [preview,   setPreview]   = useState(null);
   const [showCreate,setShowCreate]= useState(false);
+  const [resolving, setResolving] = useState(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -118,9 +207,11 @@ export default function DepartmentHeadDashboard() {
     if (!officerId) return toast('Select an officer first','error');
     try {
       const r = await assignOfficer(issueId, officerId);
-      setIssues(prev => prev.map(i => i._id === issueId ? r.data.issue : i));
-      toast(`✅ Issue assigned to ${r.data.issue.assignedTo?.name}`);
-      setAssignMap(m => { const n={...m}; delete n[issueId]; return n; });
+      const updated = r.data.issue;
+      setIssues(prev => prev.map(i => i._id === issueId ? updated : i));
+      toast(`✅ Issue assigned to ${updated.assignedTo?.name}`);
+      // Keep selected officer in dropdown after assignment
+      setAssignMap(m => ({ ...m, [issueId]: updated.assignedTo?._id || m[issueId] }));
     } catch { toast('Assignment failed','error'); }
   };
 
@@ -277,13 +368,13 @@ export default function DepartmentHeadDashboard() {
               <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:10, background:'rgba(6,182,212,0.05)', border:'1px solid rgba(6,182,212,0.15)', borderRadius:'var(--r-sm)', padding:'10px 12px' }}>
                 <span style={{ fontSize:12, color:'#06b6d4', fontWeight:600, fontFamily:'var(--f-display)', whiteSpace:'nowrap' }}>👷 Assign:</span>
                 <select className="form-control" style={{ flex:1, padding:'7px 12px', fontSize:13 }}
-                  value={assignMap[issue._id] || ''}
+                  value={assignMap[issue._id] || issue.assignedTo?._id || ''}
                   onChange={e => setAssignMap(m => ({ ...m, [issue._id]: e.target.value }))}>
                   <option value="">Select officer…</option>
                   {officers.map(o => <option key={o._id} value={o._id}>{o.name}</option>)}
                 </select>
                 <button className="btn btn-sm"
-                  disabled={!assignMap[issue._id]}
+                  disabled={!(assignMap[issue._id] || issue.assignedTo?._id)}
                   style={{ background:'rgba(6,182,212,0.15)', color:'#06b6d4', border:'1px solid rgba(6,182,212,0.3)', borderRadius:'var(--r-sm)', whiteSpace:'nowrap' }}
                   onClick={() => handleAssign(issue._id)}>
                   Assign →
@@ -296,7 +387,7 @@ export default function DepartmentHeadDashboard() {
               {!['resolved','closed'].includes(issue.status) && (
                 <button className="btn btn-sm"
                   style={{ background:'rgba(34,197,94,0.15)', color:'#22c55e', border:'1px solid rgba(34,197,94,0.3)', borderRadius:'var(--r-sm)' }}
-                  onClick={() => handleStatus(issue._id, 'resolved')}>✅ Resolve</button>
+                  onClick={() => setResolving(issue)}>✅ Resolve</button>
               )}
               {issue.status === 'pending' && (
                 <button className="btn btn-sm"
@@ -311,6 +402,7 @@ export default function DepartmentHeadDashboard() {
 
       {preview && <ImagePreviewModal images={preview.images} startIndex={preview.idx} onClose={() => setPreview(null)} />}
       {showCreate && <CreateOfficerModal department={user?.department} onClose={() => setShowCreate(false)} onCreated={o => setOfficers(prev => [...prev, o])} />}
+      {resolving  && <ResolveModal issue={resolving} onClose={() => setResolving(null)} onResolved={id => { setIssues(prev => prev.map(i => i._id===id ? {...i, status:'resolved'} : i)); setResolving(null); }} />}
     </div>
   );
 }
