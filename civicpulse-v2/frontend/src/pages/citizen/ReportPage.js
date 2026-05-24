@@ -239,10 +239,12 @@ export default function ReportPage() {
           <div className="card fade-up d1">
             <div className="section-label">📷 Photo Evidence ({images.length}/5)</div>
 
-            <div style={{ display:'flex', gap:10, marginBottom:'1rem', flexWrap:'wrap' }}>
-              <input ref={galleryRef} type="file" accept="image/*" multiple style={{ display:'none' }}
+            <div style={{ display:'flex', gap:10, marginBottom:'1rem', flexWrap:'wrap', position:'relative' }}>
+              <input ref={galleryRef} type="file" accept="image/*" multiple
+                style={{ position:'absolute', width:1, height:1, opacity:0, pointerEvents:'none', top:0, left:0 }}
                 onChange={e => addFiles(e.target.files)} />
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" style={{ display:'none' }}
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment"
+                style={{ position:'absolute', width:1, height:1, opacity:0, pointerEvents:'none', top:0, left:0 }}
                 onChange={e => addFiles(e.target.files)} />
 
               <button type="button" className="btn btn-glass"

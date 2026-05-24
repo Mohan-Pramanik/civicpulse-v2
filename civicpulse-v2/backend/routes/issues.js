@@ -30,7 +30,9 @@ router.get('/', asyncHandler(async (req, res) => {
 
 // GET /api/issues/mine
 router.get('/mine', protect, asyncHandler(async (req, res) => {
-  const issues = await Issue.find({ reportedBy: req.user._id }).sort('-createdAt');
+  const issues = await Issue.find({ reportedBy: req.user._id })
+  .populate('assignedTo', 'name email phone department')
+  .sort('-createdAt');
   success(res, { issues });
 }));
 
@@ -38,7 +40,7 @@ router.get('/mine', protect, asyncHandler(async (req, res) => {
 router.get('/:id', asyncHandler(async (req, res) => {
   const issue = await Issue.findById(req.params.id)
     .populate('reportedBy','name email phone')
-    .populate('assignedTo','name email')
+    .populate('assignedTo','name email phone department')
     .populate('statusHistory.updatedBy','name')
     .populate('comments.author','name role');
   if (!issue) throw new ApiError('Issue not found', 404);
@@ -81,12 +83,23 @@ router.put('/:id/upvote', protect, asyncHandler(async (req, res) => {
 }));
 
 // PUT /api/issues/:id/status  (admin/department)
-router.put('/:id/status', protect, authorize('admin','department'), asyncHandler(async (req, res) => {
+router.put('/:id/status', protect, authorize('admin','department'), upload.single('proofImage'), asyncHandler(async (req, res) => {
   const { status, message } = req.body;
+
+  if (status === 'resolved' && !req.file) {
+    return res.status(400).json({ success:false, message:'A proof image is required when marking an issue as resolved.' });
+  }
+
   const issue = await Issue.findById(req.params.id).populate('reportedBy','email name');
   if (!issue) throw new ApiError('Issue not found', 404);
+
+  const proofImage = req.file ? (req.file.path || `/uploads/${req.file.filename}`) : null;
+
   issue.status = status;
-  issue.statusHistory.push({ status, message, updatedBy: req.user._id });
+  issue.statusHistory.push({ status, message, updatedBy: req.user._id, proofImage });
+
+  if (proofImage) issue.images.push(proofImage);
+
   await issue.save();
   sendEmail(issue.reportedBy.email, 'statusUpdated', issue, status, message);
   success(res, { issue });
@@ -98,7 +111,7 @@ router.put('/:id/assign', protect, authorize('admin'), asyncHandler(async (req, 
     assignedTo: req.body.userId,
     status: 'assigned',
     $push: { statusHistory: { status:'assigned', message: req.body.message || 'Assigned to field officer', updatedBy: req.user._id } }
-  }, { new: true }).populate('assignedTo','name email');
+ }, { new: true }).populate('assignedTo','name email phone department');
   if (!issue) throw new ApiError('Issue not found', 404);
   success(res, { issue });
 }));

@@ -22,11 +22,9 @@ api.interceptors.response.use(
   }
 );
 
-// Builds full image URL from a path like /uploads/xxx.jpg
 export const getImageUrl = (path) => {
   if (!path) return null;
   if (path.startsWith('http')) return path;
-  // ensure leading slash
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${IMG_BASE}${p}`;
 };
@@ -39,24 +37,30 @@ export const updateProfile  = d  => api.put('/auth/updateprofile', d);
 export const updatePassword = d  => api.put('/auth/updatepassword', d);
 
 // Issues
-export const getIssues      = p  => api.get('/issues', { params: p });
-export const getIssue       = id => api.get(`/issues/${id}`);
-export const createIssue    = d  => api.post('/issues', d, { headers: { 'Content-Type': 'multipart/form-data' } });
-export const upvoteIssue    = id => api.put(`/issues/${id}/upvote`);
-export const updateStatus   = (id, d) => api.put(`/issues/${id}/status`, d);
-export const addComment     = (id, d) => api.post(`/issues/${id}/comments`, d);
-export const rateIssue      = (id, d) => api.put(`/issues/${id}/rate`, d);
-export const getMyIssues    = () => api.get('/issues/mine');
+export const getIssues      = p        => api.get('/issues', { params: p });
+export const getIssue       = id       => api.get(`/issues/${id}`);
+export const createIssue    = d        => api.post('/issues', d, { headers: { 'Content-Type': 'multipart/form-data' } });
+export const upvoteIssue    = id       => api.put(`/issues/${id}/upvote`);
+export const updateStatus   = (id, d)  => api.put(`/issues/${id}/status`, d);
+export const addComment     = (id, d)  => api.post(`/issues/${id}/comments`, d);
+export const rateIssue      = (id, d)  => api.put(`/issues/${id}/rate`, d);
+export const getMyIssues    = ()       => api.get('/issues/mine');
 
 // Admin
-export const getAdminStats  = () => api.get('/admin/stats');
-export const getDeptStats   = () => api.get('/admin/dept-stats');
-export const getAdminIssues = p  => api.get('/admin/issues', { params: p });
-export const getAdminUsers  = p  => api.get('/admin/users', { params: p });
-export const updateUser     = (id, d) => api.put(`/admin/users/${id}`, d);
-export const deleteUser     = id => api.delete(`/admin/users/${id}`);
-export const createUser     = d  => api.post('/admin/users', d);
-export const bulkStatus     = d  => api.post('/admin/bulk-status', d);
-export const exportIssues   = () => api.get('/admin/export');
+export const getAdminStats  = ()       => api.get('/admin/stats');
+export const getDeptStats   = ()       => api.get('/admin/dept-stats');
+export const getAdminIssues = p        => api.get('/admin/issues', { params: p });
+export const getAdminUsers  = p        => api.get('/admin/users', { params: p });
+export const updateUser     = (id, d)  => api.put(`/admin/users/${id}`, d);
+export const deleteUser     = id       => api.delete(`/admin/users/${id}`);
+export const createUser     = d        => api.post('/admin/users', d);
+export const bulkStatus     = d        => api.post('/admin/bulk-status', d);
+export const exportIssues   = ()       => api.get('/admin/export');
+
+// ── Officer management (dept head) ──────────────────────────────────────────
+export const getMyOfficers  = ()       => api.get('/admin/my-officers');
+export const createOfficer  = d        => api.post('/admin/my-officers', d);
+export const assignOfficer  = (issueId, officerId) =>
+  api.put(`/admin/issues/${issueId}/assign`, { officerId });
 
 export default api;
