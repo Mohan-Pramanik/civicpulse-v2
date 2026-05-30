@@ -2,7 +2,7 @@
 
 A scalable full-stack MERN application for citizens to report, track, and resolve civic issues in Kolkata — connecting citizens directly with the right government departments.
 
----
+---Live demo :[ civicpulse-v2.vercel.app](https://civicpulse-v2.vercel.app/)
 
 ## 📁 Project Structure
 
