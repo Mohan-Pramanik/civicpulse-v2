@@ -60,10 +60,14 @@ const UserSchema = new mongoose.Schema({
   loginCount: { type: Number, default: 0 },
 
   // ── Penalty & Performance (field officers only) ───────────────
-  penaltyPoints:  { type: Number, default: 0 }, // accumulates over time
-  totalAssigned:  { type: Number, default: 0 }, // total issues ever assigned
-  resolvedOnTime: { type: Number, default: 0 }, // resolved before deadline
-  resolvedLate:   { type: Number, default: 0 }, // resolved after deadline
+  penaltyPoints:    { type: Number, default: 0 }, // accumulates over time
+  totalAssigned:    { type: Number, default: 0 }, // total issues ever assigned
+  resolvedOnTime:   { type: Number, default: 0 }, // resolved before deadline
+  resolvedLate:     { type: Number, default: 0 }, // resolved after deadline
+
+  // ── Government Compensation (deducted from officer for missed deadlines) ──
+  compensationOwed: { type: Number, default: 0 }, // total ₹ owed to govt (running total)
+  compensationPaid: { type: Number, default: 0 }, // total ₹ already paid/cleared by admin
 
   resetPasswordToken:  String,
   resetPasswordExpire: Date,

@@ -347,4 +347,40 @@ router.get('/export', authorize('admin'), asyncHandler(async (req, res) => {
   success(res, { data: issues, count: issues.length });
 }));
 
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/compensation  (admin — list all officers with compensation owed)
+// ─────────────────────────────────────────────────────────────
+router.get('/compensation', authorize('admin'), asyncHandler(async (req, res) => {
+  const officers = await User.find({
+    role: 'department',
+    compensationOwed: { $gt: 0 },
+  }).select('name email department compensationOwed compensationPaid penaltyPoints').sort('-compensationOwed');
+
+  const totalOwed = officers.reduce((sum, o) => sum + (o.compensationOwed || 0), 0);
+  const totalPaid = officers.reduce((sum, o) => sum + (o.compensationPaid || 0), 0);
+
+  success(res, { officers, summary: { totalOwed, totalPaid, outstanding: totalOwed - totalPaid } });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/admin/compensation/:officerId/clear  (admin — mark compensation as paid/cleared)
+// ─────────────────────────────────────────────────────────────
+router.post('/compensation/:officerId/clear', authorize('admin'), asyncHandler(async (req, res) => {
+  const { amount } = req.body;  // optional — clears full owed if not specified
+  const officer = await User.findById(req.params.officerId);
+  if (!officer) throw new ApiError('Officer not found', 404);
+
+  const clearAmount = amount ? Number(amount) : officer.compensationOwed;
+
+  officer.compensationPaid += clearAmount;
+  officer.compensationOwed  = Math.max(0, officer.compensationOwed - clearAmount);
+  await officer.save();
+
+  success(res, {
+    message: `₹${clearAmount} cleared for ${officer.name}`,
+    officer: { name: officer.name, compensationOwed: officer.compensationOwed, compensationPaid: officer.compensationPaid },
+  });
+}));
+
 module.exports = router;
