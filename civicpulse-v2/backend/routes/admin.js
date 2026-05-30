@@ -22,16 +22,110 @@ router.use(protect);
 // GET /api/admin/stats  (admin only)
 // ─────────────────────────────────────────────────────────────
 router.get('/stats', authorize('admin'), asyncHandler(async (req, res) => {
-  const [total, pending, inProgress, resolved, critical, users] = await Promise.all([
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+  const [
+    total, pending, inProgress, resolved, critical, users,
+    byCategory, byDept, trend, topAreas, satisfaction, avgResArr
+  ] = await Promise.all([
     Issue.countDocuments(),
     Issue.countDocuments({ status: 'pending' }),
     Issue.countDocuments({ status: 'in_progress' }),
     Issue.countDocuments({ status: 'resolved' }),
     Issue.countDocuments({ priority: 'critical' }),
     User.countDocuments({ role: 'citizen' }),
+
+    // Issues by category
+    Issue.aggregate([
+      { $group: { _id: '$category', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]),
+
+    // Department performance
+    Issue.aggregate([
+      {
+        $group: {
+          _id: '$department',
+          total:      { $sum: 1 },
+          resolved:   { $sum: { $cond: [{ $eq: ['$status', 'resolved'] }, 1, 0] } },
+          inProgress: { $sum: { $cond: [{ $eq: ['$status', 'in_progress'] }, 1, 0] } },
+          pending:    { $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] } },
+          avgDays: {
+            $avg: {
+              $cond: [
+                { $and: [{ $eq: ['$status', 'resolved'] }, { $ifNull: ['$resolvedAt', false] }] },
+                { $divide: [{ $subtract: ['$resolvedAt', '$createdAt'] }, 86400000] },
+                null,
+              ],
+            },
+          },
+        },
+      },
+      { $sort: { total: -1 } },
+    ]),
+
+    // 7-day trend — reported by createdAt, resolved by resolvedAt
+    Promise.all([
+      Issue.aggregate([
+        { $match: { createdAt: { $gte: sevenDaysAgo } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, count: { $sum: 1 } } },
+      ]),
+      Issue.aggregate([
+        { $match: { resolvedAt: { $gte: sevenDaysAgo, $exists: true } } },
+        { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$resolvedAt' } }, count: { $sum: 1 } } },
+      ]),
+    ]).then(([rep, res]) => {
+      const map = {};
+      rep.forEach(r => { map[r._id] = map[r._id] || { _id: r._id, reported: 0, resolved: 0 }; map[r._id].reported = r.count; });
+      res.forEach(r => { map[r._id] = map[r._id] || { _id: r._id, reported: 0, resolved: 0 }; map[r._id].resolved = r.count; });
+      return Object.values(map).sort((a, b) => a._id.localeCompare(b._id));
+    }),
+
+    // Top hotspot areas
+    Issue.aggregate([
+      { $match: { 'location.area': { $exists: true, $ne: '' } } },
+      { $group: { _id: '$location.area', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 5 },
+    ]),
+
+    // Satisfaction ratings
+    Issue.aggregate([
+      { $match: { satisfactionRating: { $exists: true, $ne: null } } },
+      {
+        $group: {
+          _id: null,
+          avg:   { $avg: '$satisfactionRating' },
+          count: { $sum: 1 },
+        },
+      },
+    ]),
+
+    // Avg resolution days
+    Issue.aggregate([
+      { $match: { status: 'resolved', resolvedAt: { $exists: true } } },
+      {
+        $group: {
+          _id: null,
+          avgDays: { $avg: { $divide: [{ $subtract: ['$resolvedAt', '$createdAt'] }, 86400000] } },
+        },
+      },
+    ]),
   ]);
-  const resolutionRate = total ? Math.round((resolved / total) * 100) : 0;
-  success(res, { kpis: { total, pending, inProgress, resolved, critical, users, resolutionRate } });
+
+  const resolutionRate    = total ? Math.round((resolved / total) * 100) : 0;
+  const avgResolutionDays = avgResArr[0] ? Number(avgResArr[0].avgDays).toFixed(1) : null;
+
+  success(res, {
+    kpis: { total, pending, inProgress, resolved, critical, users, resolutionRate, avgResolutionDays },
+    byCategory,
+    byDept,
+    trend,
+    topAreas,
+    satisfaction: satisfaction[0]
+      ? { avg: satisfaction[0].avg, count: satisfaction[0].count }
+      : { avg: 0, count: 0 },
+  });
 }));
 
 // ─────────────────────────────────────────────────────────────
