@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createIssue } from '../../api';
 import { useToast } from '../../context/ToastContext';
-import IssueMap from '../../components/common/IssueMap';   // ← Leaflet map picker
+import IssueMap from '../../components/common/IssueMap';
 
 const ROUTING = {
   road:         { dept:'Public Works Department (PWD)',   eta:'3–5 working days', color:'#6366f1' },
@@ -14,7 +14,8 @@ const ROUTING = {
 };
 
 const STEPS = ['Details', 'Location', 'Photos & Submit'];
-const initForm = { title:'', description:'', category:'', priority:'medium', address:'', landmark:'', area:'', ward:'', pincode:'', lat:'', lng:'' };
+// ← priority removed from initForm
+const initForm = { title:'', description:'', category:'', address:'', landmark:'', area:'', ward:'', pincode:'', lat:'', lng:'' };
 
 export default function ReportPage() {
   const [step,       setStep]       = useState(0);
@@ -124,29 +125,21 @@ export default function ReportPage() {
                 <input className="form-control" placeholder="e.g. Large pothole causing accidents on Park Street" value={form.title} onChange={set('title')} required />
               </div>
             </div>
-            <div className="grid-2">
-              <div className="form-group">
-                <label className="form-label">Category *</label>
-                <select className="form-control" value={form.category} onChange={set('category')} required>
-                  <option value="">Select category…</option>
-                  <option value="road">🛣️ Road / Pothole</option>
-                  <option value="water">💧 Water Supply / Sewage</option>
-                  <option value="waste">🗑️ Garbage / Waste</option>
-                  <option value="electricity">⚡ Street Lights / Electricity</option>
-                  <option value="encroachment">🏗️ Encroachment</option>
-                  <option value="other">📋 Other</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Priority</label>
-                <select className="form-control" value={form.priority} onChange={set('priority')}>
-                  <option value="low">🟢 Low</option>
-                  <option value="medium">🟡 Medium</option>
-                  <option value="high">🟠 High</option>
-                  <option value="critical">🔴 Critical</option>
-                </select>
-              </div>
+
+            {/* ← Only category now; priority removed */}
+            <div className="form-group">
+              <label className="form-label">Category *</label>
+              <select className="form-control" value={form.category} onChange={set('category')} required>
+                <option value="">Select category…</option>
+                <option value="road">🛣️ Road / Pothole</option>
+                <option value="water">💧 Water Supply / Sewage</option>
+                <option value="waste">🗑️ Garbage / Waste</option>
+                <option value="electricity">⚡ Street Lights / Electricity</option>
+                <option value="encroachment">🏗️ Encroachment</option>
+                <option value="other">📋 Other</option>
+              </select>
             </div>
+
             {route && (
               <div style={{ background:`linear-gradient(135deg,${route.color}12,${route.color}06)`, border:`1px solid ${route.color}25`, borderRadius:'var(--r-sm)', padding:'12px 16px', marginBottom:'1rem' }}>
                 <div style={{ fontSize:11, color:route.color, fontWeight:700, fontFamily:'var(--f-display)', textTransform:'uppercase', letterSpacing:'.05em', marginBottom:4 }}>⚡ Auto-routed to</div>
@@ -197,7 +190,6 @@ export default function ReportPage() {
               </div>
             </div>
 
-            {/* GPS button */}
             <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:'1rem', flexWrap:'wrap' }}>
               <button type="button" className="btn btn-glass" onClick={getGPS} disabled={locBusy}>
                 {locBusy ? '📡 Getting location…' : '📡 Use My GPS Location'}
@@ -209,7 +201,6 @@ export default function ReportPage() {
               )}
             </div>
 
-            {/* ── Leaflet map picker ───────────────────────────────────── */}
             <div style={{ marginBottom:'1rem' }}>
               <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8, fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em' }}>
                 🖱️ Or click on the map to pin exact location
@@ -225,7 +216,6 @@ export default function ReportPage() {
                 }}
               />
             </div>
-            {/* ── end map picker ───────────────────────────────────────── */}
 
             <div style={{ display:'flex', gap:8, justifyContent:'space-between' }}>
               <button type="button" className="btn btn-glass" onClick={() => setStep(0)}>← Back</button>
@@ -295,7 +285,7 @@ export default function ReportPage() {
             <div style={{ background:'rgba(255,255,255,0.03)', border:'1px solid var(--glass-border)', borderRadius:'var(--r-sm)', padding:'1rem', marginBottom:'1rem' }}>
               <div className="section-label">📋 Submission Summary</div>
               <div style={{ fontSize:14, color:'var(--text-primary)', fontWeight:700, marginBottom:6 }}>{form.title}</div>
-              <div style={{ fontSize:13, color:'var(--text-muted)' }}>📂 {form.category} · ⚡ {form.priority} priority</div>
+              <div style={{ fontSize:13, color:'var(--text-muted)' }}>📂 {form.category}</div>
               <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>📍 {form.address}{form.area?`, ${form.area}`:''}</div>
               {form.lat && <div style={{ fontSize:13, color:'#22c55e', marginTop:3 }}>🗺️ GPS: {form.lat}, {form.lng}</div>}
               {route && <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:3 }}>🏛️ Routed to: {route.dept}</div>}

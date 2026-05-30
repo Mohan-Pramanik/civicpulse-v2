@@ -2,83 +2,101 @@ const mongoose = require('mongoose');
 const { ROUTING_MAP } = require('../services/routingService');
 
 const StatusHistorySchema = new mongoose.Schema({
-  status:    { type: String, required: true },
-  message:   { type: String, default: '' },
-  updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  timestamp: { type: Date, default: Date.now }
-}, { _id: false });
+  status:     { type:String, required:true },
+  message:    { type:String, default:'' },
+  updatedBy:  { type:mongoose.Schema.Types.ObjectId, ref:'User' },
+  proofImage: { type:String },               // proof photo URL on resolve
+  timestamp:  { type:Date, default:Date.now }
+}, { _id:false });
 
 const CommentSchema = new mongoose.Schema({
-  text:      { type: String, required: true },
-  author:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  isPublic:  { type: Boolean, default: true },   // false = internal admin note
-  createdAt: { type: Date, default: Date.now }
+  text:      { type:String, required:true },
+  author:    { type:mongoose.Schema.Types.ObjectId, ref:'User', required:true },
+  isPublic:  { type:Boolean, default:true },
+  createdAt: { type:Date, default:Date.now }
 });
+
+// ── Notification log (escalation records) ────────────────────
+const NotificationSchema = new mongoose.Schema({
+  type:      { type:String, enum:['overdue_officer','escalate_head','escalate_admin'] },
+  sentAt:    { type:Date, default:Date.now },
+  message:   { type:String }
+}, { _id:false });
 
 const IssueSchema = new mongoose.Schema({
   ticketId: {
-    type: String, unique: true,
+    type:String, unique:true,
     default: () => `CIV-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`
   },
-  title:       { type: String, required: [true,'Title required'], trim: true, maxlength: 150 },
-  description: { type: String, required: [true,'Description required'], maxlength: 1000 },
+  title:        { type:String, required:[true,'Title required'], trim:true, maxlength:150 },
+  description:  { type:String, required:[true,'Description required'], maxlength:1000 },
   category: {
-    type: String, required: [true,'Category required'],
-    enum: ['road','water','waste','electricity','encroachment','other']
+    type:String, required:[true,'Category required'],
+    enum:['road','water','waste','electricity','encroachment','other']
   },
-  subcategory: { type: String },
   priority: {
-    type: String, enum: ['low','medium','high','critical'], default: 'medium'
+    type:String, enum:['low','medium','high','critical'], default:'medium'
   },
   status: {
-    type: String,
-    enum: ['pending','assigned','in_progress','resolved','closed','rejected'],
-    default: 'pending'
+    type:String,
+    enum:['pending','assigned','in_progress','resolved','closed','rejected'],
+    default:'pending'
   },
   location: {
-    address:  { type: String, required: [true,'Address required'] },
-    landmark: { type: String },
-    area:     { type: String },
-    ward:     { type: String },
-    city:     { type: String, default: 'Kolkata' },
-    state:    { type: String, default: 'West Bengal' },
-    pincode:  { type: String },
-    lat:      { type: Number },
-    lng:      { type: Number }
+    address:  { type:String, required:[true,'Address required'] },
+    landmark: { type:String },
+    area:     { type:String },
+    ward:     { type:String },
+    city:     { type:String, default:'Kolkata' },
+    pincode:  { type:String },
+    lat:      { type:Number },
+    lng:      { type:Number },
+    // ── Dedicated GeoJSON field for $near / $geoNear ──────────
+    // Must be a SEPARATE nested object — not mixed with plain fields
+    geo: {
+      type:        { type:String, enum:['Point'] },
+      coordinates: { type:[Number] }   // [lng, lat]  ← GeoJSON order
+    }
   },
-  images:        [{ type: String }],
-  reportedBy:    { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  assignedTo:    { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  department:    { type: String },
-  departmentCode:{ type: String },
-  upvotes:       [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  images:     [{ type:String }],
+  reportedBy: { type:mongoose.Schema.Types.ObjectId, ref:'User', required:true },
+  assignedTo: { type:mongoose.Schema.Types.ObjectId, ref:'User' },
+  department: { type:String },
+
+  // ── Deadline system ─────────────────────────────────────────
+  deadline:   { type:Date },   // set when issue is assigned
+  resolvedAt: { type:Date },
+  expectedResolution: { type:Date },
+
+  // ── Penalty tracking ─────────────────────────────────────────
+  delayDays:          { type:Number, default:0 },      // how many days late
+  penaltyPointsAdded: { type:Number, default:0 },      // points given for this issue
+  compensationAmount: { type:Number, default:0 },      // delayDays × 100
+
+  // ── Escalation tracking ──────────────────────────────────────
+  escalationLevel:    { type:Number, default:0 },      // 0=none,1=officer,2=head/admin
+  notifications:      [NotificationSchema],
+
+  upvotes:       [{ type:mongoose.Schema.Types.ObjectId, ref:'User' }],
   statusHistory: [StatusHistorySchema],
   comments:      [CommentSchema],
-  tags:          [{ type: String }],
-  isVerified:    { type: Boolean, default: false },   // admin verified
-  isDuplicate:   { type: Boolean, default: false },
-  duplicateOf:   { type: mongoose.Schema.Types.ObjectId, ref: 'Issue' },
-  viewCount:     { type: Number, default: 0 },
-  resolvedAt:    { type: Date },
-  expectedResolution: { type: Date },
-  satisfactionRating: { type: Number, min:1, max:5 },
-  satisfactionComment: { type: String }
-}, { timestamps: true });
+  tags:          [{ type:String }],
+  viewCount:     { type:Number, default:0 },
+  satisfactionRating:  { type:Number, min:1, max:5 },
+  satisfactionComment: { type:String }
+}, { timestamps:true });
 
-// Compound indexes for fast queries
-IssueSchema.index({ category: 1, status: 1 });
-IssueSchema.index({ priority: -1, createdAt: -1 });
-IssueSchema.index({ reportedBy: 1, createdAt: -1 });
-IssueSchema.index({ department: 1, status: 1 });
-IssueSchema.index({ 'location.area': 1 });
-IssueSchema.index({ 'location.lat': 1, 'location.lng': 1 });
+// ── Indexes ───────────────────────────────────────────────────
+IssueSchema.index({ status:1, deadline:1 });
+IssueSchema.index({ assignedTo:1, status:1 });
+IssueSchema.index({ department:1, status:1 });
+IssueSchema.index({ 'location.geo': '2dsphere' }); // ← must point to the GeoJSON sub-field
 
-// Auto-assign department + expected resolution on create
+// ── Pre-save: auto-route + set expectedResolution ─────────────
 IssueSchema.pre('save', function(next) {
   if (this.isNew) {
     const route = ROUTING_MAP[this.category] || ROUTING_MAP['other'];
-    this.department     = this.department     || route.department;
-    this.departmentCode = this.departmentCode || route.code;
+    this.department = this.department || route.department;
     if (!this.expectedResolution) {
       const eta = parseInt(route.eta.split('–')[0]) || 7;
       this.expectedResolution = new Date(Date.now() + eta * 24 * 3600 * 1000);
@@ -90,18 +108,17 @@ IssueSchema.pre('save', function(next) {
   next();
 });
 
-// Virtuals
+// ── Virtuals ──────────────────────────────────────────────────
 IssueSchema.virtual('upvoteCount').get(function() { return this.upvotes.length; });
-IssueSchema.virtual('resolutionDays').get(function() {
-  if (!this.resolvedAt) return null;
-  return Math.round((this.resolvedAt - this.createdAt) / 86400000);
-});
+
+// isOverdue: past deadline and not yet resolved
 IssueSchema.virtual('isOverdue').get(function() {
-  if (this.status === 'resolved' || !this.expectedResolution) return false;
-  return new Date() > this.expectedResolution;
+  if (['resolved','closed','rejected'].includes(this.status)) return false;
+  if (!this.deadline) return false;
+  return new Date() > this.deadline;
 });
 
-IssueSchema.set('toJSON', { virtuals: true });
-IssueSchema.set('toObject', { virtuals: true });
+IssueSchema.set('toJSON',   { virtuals:true });
+IssueSchema.set('toObject', { virtuals:true });
 
 module.exports = mongoose.model('Issue', IssueSchema);

@@ -63,7 +63,6 @@ function ResolveModal({ issue, onClose, onResolved }) {
 
         {err && <div className="alert alert-error" style={{ marginBottom:'1rem' }}>⚠️ {err}</div>}
 
-        {/* Proof image upload */}
         <div style={{ marginBottom:'1rem' }}>
           <div style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:8 }}>
             📷 Proof Image <span style={{ color:'#ef4444' }}>*</span> (mandatory)
@@ -91,7 +90,6 @@ function ResolveModal({ issue, onClose, onResolved }) {
           )}
         </div>
 
-        {/* Note */}
         <div className="form-group">
           <label className="form-label">Message to citizen</label>
           <textarea className="form-control" rows={2} value={note} onChange={e => setNote(e.target.value)} />
@@ -108,8 +106,54 @@ function ResolveModal({ issue, onClose, onResolved }) {
   );
 }
 
+/* ── Priority Selector (inline, used by officers/dept head) ─────────────────── */
+function PrioritySelector({ issue, onPriorityChange }) {
+  const [busy, setBusy] = useState(false);
+  const { toast } = useToast();
+  const OPTS = [
+    { value:'critical', label:'🔴 Critical', color:'#ef4444', bg:'rgba(239,68,68,0.12)', border:'rgba(239,68,68,0.35)' },
+    { value:'high',     label:'🟠 High',     color:'#f59e0b', bg:'rgba(245,158,11,0.12)', border:'rgba(245,158,11,0.35)' },
+    { value:'medium',   label:'🟡 Medium',   color:'#06b6d4', bg:'rgba(6,182,212,0.12)',  border:'rgba(6,182,212,0.35)'  },
+    { value:'low',      label:'🟢 Low',      color:'#22c55e', bg:'rgba(34,197,94,0.12)',  border:'rgba(34,197,94,0.35)'  },
+  ];
+
+  const change = async (val) => {
+    if (val === issue.priority) return;
+    setBusy(true);
+    try {
+      await api.patch(`/issues/${issue._id}`, { priority: val });
+      toast(`⚡ Priority set to ${val}`);
+      onPriorityChange(issue._id, val);
+    } catch { toast('Failed to update priority', 'error'); }
+    setBusy(false);
+  };
+
+  return (
+    <div style={{ marginBottom:10 }}>
+      <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em', marginBottom:6 }}>
+        ⚡ Set Priority
+      </div>
+      <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+        {OPTS.map(opt => (
+          <button key={opt.value} disabled={busy}
+            onClick={() => change(opt.value)}
+            style={{
+              padding:'3px 10px', fontSize:11, fontWeight:700, borderRadius:20, cursor:'pointer', border:`1px solid ${opt.border}`,
+              background: issue.priority === opt.value ? opt.bg : 'transparent',
+              color: issue.priority === opt.value ? opt.color : 'var(--text-muted)',
+              boxShadow: issue.priority === opt.value ? `0 0 8px ${opt.border}` : 'none',
+              transition:'all 0.18s', fontFamily:'var(--f-display)',
+            }}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Issue Card ─────────────────────────────────────────────────────────────── */
-function IssueCard({ issue, onStatusChange }) {
+function IssueCard({ issue, onStatusChange, onPriorityChange }) {
   const [showNote,   setShowNote]   = useState(false);
   const [note,       setNote]       = useState('');
   const [busy,       setBusy]       = useState(false);
@@ -154,7 +198,7 @@ function IssueCard({ issue, onStatusChange }) {
           </div>
         </div>
 
-        {/* ── Citizen details card ── */}
+        {/* Citizen details */}
         {reporter && (
           <div style={{ background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.18)', borderRadius:'var(--r-sm)', padding:'10px 14px', marginBottom:10 }}>
             <div style={{ fontSize:10, color:'#818cf8', fontFamily:'var(--f-display)', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:7 }}>👤 Reported By</div>
@@ -176,7 +220,7 @@ function IssueCard({ issue, onStatusChange }) {
           </div>
         )}
 
-        {/* ── Assigned officer (if different from current user) ── */}
+        {/* Assigned officer */}
         {officer && officer._id !== issue.reportedBy?._id && (
           <div style={{ background:'rgba(6,182,212,0.06)', border:'1px solid rgba(6,182,212,0.18)', borderRadius:'var(--r-sm)', padding:'10px 14px', marginBottom:10 }}>
             <div style={{ fontSize:10, color:'#06b6d4', fontFamily:'var(--f-display)', fontWeight:700, textTransform:'uppercase', letterSpacing:'.06em', marginBottom:5 }}>👷 Assigned Officer</div>
@@ -221,6 +265,11 @@ function IssueCard({ issue, onStatusChange }) {
           <div style={{ background:'var(--hover-bg)', border:'1px solid var(--glass-border)', borderRadius:'var(--r-sm)', padding:'10px 14px', marginBottom:10, fontSize:13, color:'var(--text-secondary)', lineHeight:1.6 }}>
             {issue.description}
           </div>
+        )}
+
+        {/* ← Priority selector for officer */}
+        {!['resolved','closed'].includes(issue.status) && (
+          <PrioritySelector issue={issue} onPriorityChange={onPriorityChange} />
         )}
 
         {showNote && (
@@ -281,7 +330,6 @@ export default function OfficerDashboard() {
       const iRes = await getAdminIssues({ assignedTo: user?._id, ...filters, limit:50 });
       const all  = iRes.data.data || [];
       setIssues(all);
-      // ← Compute KPIs from THIS officer's own issues only
       setKpis({
         total:          all.length,
         pending:        all.filter(i => i.status === 'pending').length,
@@ -297,7 +345,9 @@ export default function OfficerDashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  const onStatusChange = (id, status) => setIssues(prev => prev.map(i => i._id === id ? { ...i, status } : i));
+  const onStatusChange   = (id, status)   => setIssues(prev => prev.map(i => i._id === id ? { ...i, status }   : i));
+  const onPriorityChange = (id, priority) => setIssues(prev => prev.map(i => i._id === id ? { ...i, priority } : i));
+
   const filtered = issues.filter(i => !search || i.title?.toLowerCase().includes(search.toLowerCase()) || i.ticketId?.includes(search.toUpperCase()));
 
   const KPI = [
@@ -351,9 +401,13 @@ export default function OfficerDashboard() {
             <option value="">All Status</option>
             {['pending','assigned','in_progress','resolved'].map(s => <option key={s} value={s}>{s.replace(/_/g,' ')}</option>)}
           </select>
+          {/* ← Priority filter added */}
           <select className="form-control" style={{ width:140 }} value={filters.priority} onChange={e => setFilters(f => ({ ...f, priority:e.target.value }))}>
             <option value="">All Priority</option>
-            {['critical','high','medium','low'].map(p => <option key={p} value={p}>{p}</option>)}
+            <option value="critical">🔴 Critical</option>
+            <option value="high">🟠 High</option>
+            <option value="medium">🟡 Medium</option>
+            <option value="low">🟢 Low</option>
           </select>
           {(filters.status || filters.priority || search) && (
             <button className="btn btn-glass btn-sm" onClick={() => { setFilters({ status:'', priority:'' }); setSearch(''); }}>✕ Clear</button>
@@ -374,8 +428,8 @@ export default function OfficerDashboard() {
           )
           : (
             <div>
-              {filtered.filter(i => i.priority === 'critical').map(i => <IssueCard key={i._id} issue={i} onStatusChange={onStatusChange} />)}
-              {filtered.filter(i => i.priority !== 'critical').map(i => <IssueCard key={i._id} issue={i} onStatusChange={onStatusChange} />)}
+              {filtered.filter(i => i.priority === 'critical').map(i => <IssueCard key={i._id} issue={i} onStatusChange={onStatusChange} onPriorityChange={onPriorityChange} />)}
+              {filtered.filter(i => i.priority !== 'critical').map(i => <IssueCard key={i._id} issue={i} onStatusChange={onStatusChange} onPriorityChange={onPriorityChange} />)}
             </div>
           )
       }

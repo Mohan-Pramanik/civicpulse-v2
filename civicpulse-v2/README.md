@@ -56,7 +56,6 @@ npm install
 node utils/seed.js         # seeds all demo users (admin, dept heads, officers, citizen)
 npm run dev                # starts on :5000
 ```
-
 ### 3. Frontend Setup
 ```bash
 cd frontend

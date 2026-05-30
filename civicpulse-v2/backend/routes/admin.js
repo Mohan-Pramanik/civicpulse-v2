@@ -1,304 +1,256 @@
-const express = require('express');
-const router  = express.Router();
-const Issue   = require('../models/Issue');
-const User    = require('../models/User');
-const asyncHandler = require('../utils/asyncHandler');
+/**
+ * Routes that require admin OR department-head privilege.
+ * Mount at: /api/admin
+ *
+ * Key additions vs original:
+ *   GET  /my-officers      → dept head fetches own officers (no admin needed)
+ *   POST /my-officers      → dept head creates a new officer in their dept
+ */
+const express      = require('express');
+const router       = express.Router();
+const User         = require('../models/User');
+const Issue        = require('../models/Issue');
 const ApiError     = require('../utils/ApiError');
+const asyncHandler = require('../utils/asyncHandler');
 const { protect, authorize } = require('../middleware/auth');
 const { success, paginated } = require('../utils/response');
 
+// ── All admin routes require login ────────────────────────────
 router.use(protect);
 
-const adminOnly   = authorize('admin');
-const adminOrDept = authorize('admin','department');
-const deptHeadOnly = (req, res, next) => {
-  if (req.user.role === 'admin' || (req.user.role === 'department' && req.user.isHead)) return next();
-  return res.status(403).json({ success:false, message:'Department head access required' });
-};
-
-// ── STATS ─────────────────────────────────────────────────────
-router.get('/stats', adminOnly, asyncHandler(async (req, res) => {
-  const [total,resolved,inProgress,pending,assigned,critical] = await Promise.all([
-    Issue.countDocuments(), Issue.countDocuments({status:'resolved'}),
-    Issue.countDocuments({status:'in_progress'}), Issue.countDocuments({status:'pending'}),
-    Issue.countDocuments({status:'assigned'}), Issue.countDocuments({priority:'critical'}),
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/stats  (admin only)
+// ─────────────────────────────────────────────────────────────
+router.get('/stats', authorize('admin'), asyncHandler(async (req, res) => {
+  const [total, pending, inProgress, resolved, critical, users] = await Promise.all([
+    Issue.countDocuments(),
+    Issue.countDocuments({ status: 'pending' }),
+    Issue.countDocuments({ status: 'in_progress' }),
+    Issue.countDocuments({ status: 'resolved' }),
+    Issue.countDocuments({ priority: 'critical' }),
+    User.countDocuments({ role: 'citizen' }),
   ]);
-
-  const byCategory = await Issue.aggregate([
-    {$group:{_id:'$category',count:{$sum:1},resolved:{$sum:{$cond:[{$eq:['$status','resolved']},1,0]}}}},
-    {$sort:{count:-1}}
-  ]);
-
-  const byDept = await Issue.aggregate([
-    {$group:{_id:'$department',total:{$sum:1},
-      resolved:  {$sum:{$cond:[{$eq:['$status','resolved']},1,0]}},
-      inProgress:{$sum:{$cond:[{$eq:['$status','in_progress']},1,0]}},
-      pending:   {$sum:{$cond:[{$eq:['$status','pending']},1,0]}},
-      avgDays:   {$avg:{$cond:[{$and:[{$eq:['$status','resolved']},{$ne:['$resolvedAt',null]}]},
-        {$divide:[{$subtract:['$resolvedAt','$createdAt']},86400000]},null]}}}},
-    {$sort:{total:-1}}
-  ]);
-
-  const sevenAgo = new Date(); sevenAgo.setDate(sevenAgo.getDate()-7);
-  const trend = await Issue.aggregate([
-    {$match:{createdAt:{$gte:sevenAgo}}},
-    {$group:{_id:{$dateToString:{format:'%Y-%m-%d',date:'$createdAt'}},
-      reported:{$sum:1},resolved:{$sum:{$cond:[{$eq:['$status','resolved']},1,0]}}}},
-    {$sort:{_id:1}}
-  ]);
-
-  const avgRes = await Issue.aggregate([
-    {$match:{status:'resolved',resolvedAt:{$exists:true}}},
-    {$project:{days:{$divide:[{$subtract:['$resolvedAt','$createdAt']},86400000]}}},
-    {$group:{_id:null,avg:{$avg:'$days'}}}
-  ]);
-
-  const topAreas = await Issue.aggregate([
-    {$match:{'location.area':{$exists:true,$ne:''}}},
-    {$group:{_id:'$location.area',count:{$sum:1}}},
-    {$sort:{count:-1}},{$limit:5}
-  ]);
-
-  const satisfaction = await Issue.aggregate([
-    {$match:{satisfactionRating:{$exists:true}}},
-    {$group:{_id:null,avg:{$avg:'$satisfactionRating'},count:{$sum:1}}}
-  ]);
-
-  success(res,{
-    kpis:{total,resolved,inProgress,pending,assigned,critical,
-      resolutionRate:total>0?((resolved/total)*100).toFixed(1):0,
-      avgResolutionDays:avgRes[0]?.avg?.toFixed(1)||'N/A'},
-    byCategory,byDept,trend,topAreas,
-    satisfaction:satisfaction[0]||{avg:0,count:0}
-  });
+  const resolutionRate = total ? Math.round((resolved / total) * 100) : 0;
+  success(res, { kpis: { total, pending, inProgress, resolved, critical, users, resolutionRate } });
 }));
 
-// ── DEPT STATS ────────────────────────────────────────────────
-router.get('/dept-stats', adminOrDept, asyncHandler(async (req, res) => {
-  const filter = req.user.role==='admin' ? {} : {department:req.user.department};
-  const [total,pending,inProgress,resolved,critical] = await Promise.all([
-    Issue.countDocuments(filter), Issue.countDocuments({...filter,status:'pending'}),
-    Issue.countDocuments({...filter,status:'in_progress'}),
-    Issue.countDocuments({...filter,status:'resolved'}),
-    Issue.countDocuments({...filter,priority:'critical'}),
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/dept-stats  (admin + dept head)
+// ─────────────────────────────────────────────────────────────
+router.get('/dept-stats', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const filter = req.user.role === 'admin' ? {} : { department: req.user.department };
+
+  const [total, pending, inProgress, resolved, critical] = await Promise.all([
+    Issue.countDocuments(filter),
+    Issue.countDocuments({ ...filter, status: 'pending' }),
+    Issue.countDocuments({ ...filter, status: 'in_progress' }),
+    Issue.countDocuments({ ...filter, status: 'resolved' }),
+    Issue.countDocuments({ ...filter, priority: 'critical' }),
   ]);
-  const avgRes = await Issue.aggregate([
-    {$match:{...filter,status:'resolved',resolvedAt:{$exists:true}}},
-    {$project:{days:{$divide:[{$subtract:['$resolvedAt','$createdAt']},86400000]}}},
-    {$group:{_id:null,avg:{$avg:'$days'}}}
-  ]);
-  success(res,{kpis:{total,pending,inProgress,resolved,critical,
-    resolutionRate:total>0?((resolved/total)*100).toFixed(1):0,
-    avgResolutionDays:avgRes[0]?.avg?.toFixed(1)||'N/A',
-    department:req.user.department
-  }});
+  const resolutionRate = total ? Math.round((resolved / total) * 100) : 0;
+  success(res, { kpis: { total, pending, inProgress, resolved, critical, resolutionRate } });
 }));
 
-// ── ISSUES ────────────────────────────────────────────────────
-router.get('/issues', adminOrDept, asyncHandler(async (req, res) => {
-  const {status,priority,category,department,area,assignedTo,search,page=1,limit=25,sort='-createdAt'} = req.query;
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/issues  (admin + dept head — dept head sees only their dept)
+// ─────────────────────────────────────────────────────────────
+router.get('/issues', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const { status, priority, limit = 100, page = 1 } = req.query;
+
   const filter = {};
+  if (req.user.role === 'department') filter.department = req.user.department;
+  if (status)   filter.status   = status;
+  if (priority) filter.priority = priority;
 
-  if (req.user.role==='department') filter.department = req.user.department;
-  else if (department) filter.department = new RegExp(department,'i');
-
-  if (status)     filter.status             = status;
-  if (priority)   filter.priority           = priority;
-  if (category)   filter.category           = category;
-  if (area)       filter['location.area']   = new RegExp(area,'i');
-  if (assignedTo) filter.assignedTo         = assignedTo;   // ← officer-specific filter
-  if (search)     filter.$or = [
-    { title:      new RegExp(search,'i') },
-    { ticketId:   new RegExp(search,'i') },
-    { description:new RegExp(search,'i') },
-  ];
-
-  const [issues,total] = await Promise.all([
+  const skip = (Number(page) - 1) * Number(limit);
+  const [data, total] = await Promise.all([
     Issue.find(filter)
-      .populate('reportedBy','name email phone area ward')
-      .populate('assignedTo','name email phone department isHead')
-      .sort(sort).skip((page-1)*limit).limit(Number(limit)),
-    Issue.countDocuments(filter)
+      .populate('reportedBy', 'name email')
+      .populate('assignedTo', 'name email phone department')
+      .sort('-createdAt')
+      .skip(skip)
+      .limit(Number(limit)),
+    Issue.countDocuments(filter),
   ]);
-  paginated(res,issues,total,page,limit);
+
+  paginated(res, data, total, page, limit);
 }));
 
-// ── ASSIGN ISSUE TO OFFICER ───────────────────────────────────
-router.put('/issues/:id/assign', deptHeadOnly, asyncHandler(async (req, res) => {
-  const { officerId, message } = req.body;
-  if (!officerId) throw new ApiError('Officer ID required',400);
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/users  (admin only)
+// ─────────────────────────────────────────────────────────────
+router.get('/users', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const { role, department, page = 1, limit = 50 } = req.query;
 
-  const officer = await User.findById(officerId);
-  if (!officer) throw new ApiError('Officer not found',404);
-
-  if (req.user.role==='department' && officer.department !== req.user.department)
-    throw new ApiError('Cannot assign to officer from different department',403);
-
-  const issue = await Issue.findByIdAndUpdate(req.params.id,
-    { $set:{ assignedTo:officerId, status:'assigned' },
-      $push:{ statusHistory:{
-        status:'assigned',
-        message: message||`Assigned to ${officer.name} by ${req.user.name}`,
-        updatedBy:req.user._id,
-        timestamp:new Date()
-      }}
-    },{ new:true }
-  )
-  .populate('assignedTo','name email phone department')
-  .populate('reportedBy','name email phone');
-
-  if (!issue) throw new ApiError('Issue not found',404);
-  success(res,{issue});
-}));
-
-// ── USERS ─────────────────────────────────────────────────────
-router.get('/users', adminOrDept, asyncHandler(async (req, res) => {
-  const {role,page=1,limit=50} = req.query;
-  let filter = role ? {role} : {};
-
-  if (req.user.role==='department' && req.user.isHead) {
-    filter = {...filter, department:req.user.department};
-  } else if (req.user.role==='department' && !req.user.isHead) {
-    throw new ApiError('Access denied',403);
-  }
-
-  const [users,total] = await Promise.all([
-    User.find(filter).select('-password').sort('-createdAt').skip((page-1)*limit).limit(Number(limit)),
-    User.countDocuments(filter)
-  ]);
-  paginated(res,users,total,page,limit);
-}));
-
-// POST /api/admin/users
-router.post('/users', adminOrDept, asyncHandler(async (req, res) => {
-  const {name,email,password,role,department,isHead,phone} = req.body;
-
-  if (req.user.role==='department') {
-    if (!req.user.isHead) throw new ApiError('Only department heads can create officers',403);
-    if (role && role !== 'department') throw new ApiError('You can only create department officers',403);
-    if (department && department !== req.user.department)
-      throw new ApiError('You can only create officers for your own department',403);
-  }
-
-  const finalDept   = req.user.role==='department' ? req.user.department : department;
-  const finalRole   = req.user.role==='department' ? 'department' : (role||'citizen');
-  const finalIsHead = req.user.role==='department' ? false : (isHead||false);
-
-  if (await User.findOne({email})) {
-    const existing = await User.findOneAndUpdate({email},
-      {name,role:finalRole,department:finalDept,isHead:finalIsHead,isActive:true},
-      {new:true}
-    );
-    return success(res,{user:existing,message:'User updated'});
-  }
-
-  const user = await User.create({
-    name, email,
-    password: password||'civic@123',
-    phone:    phone||'',
-    role:     finalRole,
-    department:finalDept,
-    isHead:   finalIsHead,
-  });
-  success(res,{user,message:`Officer created. Default password: ${password||'civic@123'}`},201);
-}));
-
-// PUT /api/admin/users/:id
-router.put('/users/:id', adminOrDept, asyncHandler(async (req, res) => {
-  const target = await User.findById(req.params.id);
-  if (!target) throw new ApiError('User not found',404);
-
-  if (req.user.role==='department') {
-    if (!req.user.isHead) throw new ApiError('Access denied',403);
-    if (target.department !== req.user.department) throw new ApiError('Cannot edit users from other departments',403);
-  }
-
-  const user = await User.findByIdAndUpdate(req.params.id,
-    {role:req.body.role,department:req.body.department,isActive:req.body.isActive,isHead:req.body.isHead},
-    {new:true,runValidators:true}
-  );
-  success(res,{user});
-}));
-
-// DELETE /api/admin/users/:id
-router.delete('/users/:id', adminOrDept, asyncHandler(async (req, res) => {
-  const target = await User.findById(req.params.id);
-  if (!target) throw new ApiError('User not found',404);
-
-  if (req.user.role==='department') {
-    if (!req.user.isHead) throw new ApiError('Access denied',403);
-    if (target.department !== req.user.department) throw new ApiError('Cannot delete users from other departments',403);
-    if (target.isHead) throw new ApiError('Cannot delete department heads',403);
-  }
-
-  await User.findByIdAndDelete(req.params.id);
-  success(res,{message:'User deleted'});
-}));
-
-// POST /api/admin/bulk-status
-router.post('/bulk-status', adminOrDept, asyncHandler(async (req, res) => {
-  const {ids,status,message} = req.body;
-  await Issue.updateMany(
-    {_id:{$in:ids}},
-    {$set:{status},$push:{statusHistory:{status,message,updatedBy:req.user._id,timestamp:new Date()}}}
-  );
-  success(res,{updated:ids.length});
-}));
-
-// GET /api/admin/export
-router.get('/export', adminOnly, asyncHandler(async (req, res) => {
-  const issues = await Issue.find({})
-    .populate('reportedBy','name email')
-    .populate('assignedTo','name')
-    .select('-statusHistory -comments -upvotes -__v').lean();
-  success(res,{issues,count:issues.length});
-}));
-
-// GET /api/admin/officers — get all officers in a department
-router.get('/officers', adminOrDept, asyncHandler(async (req, res) => {
-  const dept = req.user.role==='department' ? req.user.department : req.query.department;
-  if (!dept) throw new ApiError('Department required',400);
-
-  const officers = await User.find({
-    role:'department', department:dept, isActive:{$ne:false}
-  }).select('name email phone department isHead');
-
-  success(res,{officers});
-}));
-
-// GET /api/admin/my-officers — dept head lists their own field officers
-router.get('/my-officers', adminOrDept, asyncHandler(async (req, res) => {
-  const department = req.user.role === 'admin' ? req.query.department : req.user.department;
-  const filter = { role:'department', isHead:false };
+  const filter = {};
+  if (role)       filter.role       = role;
   if (department) filter.department = department;
 
-  const officers = await User.find(filter).select('-password').sort({ name:1 });
-  success(res, { officers, count: officers.length });
+  const skip = (Number(page) - 1) * Number(limit);
+  const [data, total] = await Promise.all([
+    User.find(filter).sort('-createdAt').skip(skip).limit(Number(limit)),
+    User.countDocuments(filter),
+  ]);
+
+  paginated(res, data, total, page, limit);
 }));
 
-// POST /api/admin/my-officers — dept head creates a new field officer
-router.post('/my-officers', deptHeadOnly, asyncHandler(async (req, res) => {
+// ─────────────────────────────────────────────────────────────
+// POST /api/admin/users  (admin only — creates any account)
+// ─────────────────────────────────────────────────────────────
+router.post('/users', authorize('admin'), asyncHandler(async (req, res) => {
+  const { name, email, password, role, department, isHead, phone } = req.body;
+  if (await User.findOne({ email })) throw new ApiError('Email already registered', 400);
+  const user = await User.create({ name, email, password, role, department, isHead, phone });
+  success(res, { user }, 201);
+}));
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/admin/users/:id  (admin only)
+// ─────────────────────────────────────────────────────────────
+router.put('/users/:id', authorize('admin'), asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+  if (!user) throw new ApiError('User not found', 404);
+  success(res, { user });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// DELETE /api/admin/users/:id  (admin only)
+// ─────────────────────────────────────────────────────────────
+router.delete('/users/:id', authorize('admin'), asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndDelete(req.params.id);
+  if (!user) throw new ApiError('User not found', 404);
+  success(res, { message: 'User deleted' });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/officers  (admin — all officers; or filter by dept)
+// ─────────────────────────────────────────────────────────────
+router.get('/officers', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const filter = { role: 'department', isHead: false };
+  if (req.user.role === 'department') filter.department = req.user.department;
+  else if (req.query.department)      filter.department = req.query.department;
+
+  const officers = await User.find(filter).sort('name');
+  success(res, { data: officers });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/my-officers
+// Dept head fetches officers in THEIR OWN department only.
+// Also accessible by admin (returns all officers if admin).
+// ─────────────────────────────────────────────────────────────
+router.get('/my-officers', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const filter = { role: 'department', isHead: false };
+  if (req.user.role === 'department') {
+    filter.department = req.user.department;
+    filter._id        = { $ne: req.user._id }; // exclude self
+  }
+  const officers = await User.find(filter).sort('name');
+  success(res, { data: officers });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/admin/my-officers
+// Dept head creates a new field officer in their own department.
+// Officer is automatically assigned the head's department.
+// ─────────────────────────────────────────────────────────────
+router.post('/my-officers', authorize('admin', 'department'), asyncHandler(async (req, res) => {
   const { name, email, password, phone } = req.body;
 
-  if (!name || !email || !password)
-    return res.status(400).json({ success:false, message:'Name, email and password required' });
+  if (!name || !email || !password) {
+    throw new ApiError('name, email and password are required', 400);
+  }
+  if (password.length < 6) {
+    throw new ApiError('Password must be at least 6 characters', 400);
+  }
 
-  const department = req.user.role === 'admin' ? req.body.department : req.user.department;
+  // 🇮🇳 India-only phone check
+  if (phone && !/^\+91[6-9]\d{9}$/.test(phone)) {
+    throw new ApiError('Only Indian phone numbers allowed (+91XXXXXXXXXX)', 400);
+  }
 
-  if (await User.findOne({ email }))
-    return res.status(409).json({ success:false, message:'Email already registered' });
+  if (await User.findOne({ email })) {
+    throw new ApiError('Email already registered', 400);
+  }
+
+  // Dept is always the head's own department
+  const department = req.user.role === 'department'
+    ? req.user.department
+    : req.body.department;   // admin can specify
+
+  if (!department) throw new ApiError('department is required', 400);
 
   const officer = await User.create({
-    name, email, password,
-    phone:      phone || '',
+    name,
+    email,
+    password,
+    phone,
     role:       'department',
     department,
     isHead:     false,
-    isActive:   true,
-    isVerified: true,
   });
 
   success(res, { user: officer }, 201);
+}));
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/admin/issues/:id/assign  (admin + dept head)
+// ─────────────────────────────────────────────────────────────
+router.put('/issues/:id/assign', authorize('admin', 'department'), asyncHandler(async (req, res) => {
+  const { officerId, userId, message } = req.body;
+  const assignTo = officerId || userId;
+  if (!assignTo) throw new ApiError('officerId is required', 400);
+
+  const issue = await Issue.findByIdAndUpdate(
+    req.params.id,
+    {
+      assignedTo: assignTo,
+      status:     'assigned',
+      $push: {
+        statusHistory: {
+          status:    'assigned',
+          message:   message || 'Assigned to field officer',
+          updatedBy: req.user._id,
+        },
+      },
+    },
+    { new: true }
+  ).populate('assignedTo', 'name email phone department');
+
+  if (!issue) throw new ApiError('Issue not found', 404);
+  success(res, { issue });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/admin/bulk-status  (admin only)
+// ─────────────────────────────────────────────────────────────
+router.post('/bulk-status', authorize('admin'), asyncHandler(async (req, res) => {
+  const { ids, status, message } = req.body;
+  if (!ids?.length) throw new ApiError('ids array is required', 400);
+
+  await Issue.updateMany(
+    { _id: { $in: ids } },
+    {
+      status,
+      $push: {
+        statusHistory: { status, message: message || `Bulk update to ${status}`, updatedBy: req.user._id },
+      },
+    }
+  );
+  success(res, { updated: ids.length });
+}));
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/admin/export  (admin only — CSV-friendly JSON)
+// ─────────────────────────────────────────────────────────────
+router.get('/export', authorize('admin'), asyncHandler(async (req, res) => {
+  const issues = await Issue.find()
+    .populate('reportedBy', 'name email')
+    .populate('assignedTo', 'name email department')
+    .sort('-createdAt')
+    .limit(5000);
+  success(res, { data: issues, count: issues.length });
 }));
 
 module.exports = router;

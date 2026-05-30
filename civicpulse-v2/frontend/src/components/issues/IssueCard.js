@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { upvoteIssue, getImageUrl } from '../../api';
 import ImagePreviewModal from '../common/ImagePreviewModal';
+import OverdueBadge from '../OverdueBadge';   // ← NEW
 
 const CAT_ICON = { road:'🛣️', water:'💧', waste:'🗑️', electricity:'⚡', encroachment:'🏗️', other:'📋' };
 const CAT_BG   = { road:'rgba(99,102,241,0.12)', water:'rgba(6,182,212,0.12)', waste:'rgba(34,197,94,0.12)', electricity:'rgba(245,158,11,0.12)', encroachment:'rgba(139,92,246,0.12)', other:'rgba(255,255,255,0.06)' };
@@ -30,24 +31,69 @@ export default function IssueCard({ issue }) {
     setBusy(false);
   };
 
+  // ── Deadline countdown helper ──────────────────────────────
+  const deadlineInfo = () => {
+    if (!issue.deadline) return null;
+    if (['resolved','closed','rejected'].includes(issue.status)) return null;
+    const now      = new Date();
+    const deadline = new Date(issue.deadline);
+    const diffMs   = deadline - now;
+    if (diffMs <= 0) return null; // OverdueBadge handles this
+    const days  = Math.floor(diffMs / 86400000);
+    const hours = Math.floor((diffMs % 86400000) / 3600000);
+    const color = days === 0 ? '#ef4444' : days <= 1 ? '#f59e0b' : '#94a3b8';
+    return (
+      <span style={{ fontSize:11, color, fontWeight:600 }}>
+        ⏱ {days > 0 ? `${days}d ` : ''}{hours}h left
+      </span>
+    );
+  };
+
   return (
     <>
       <div className="issue-row" onClick={() => navigate(`/issues/${issue._id}`)}>
         <div className="issue-icon" style={{ background: CAT_BG[issue.category] || 'rgba(255,255,255,0.06)' }}>
           {CAT_ICON[issue.category] || '📋'}
         </div>
+
         <div style={{ flex:1, minWidth:0 }}>
+          {/* Title + priority */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:8 }}>
             <div className="issue-title">{issue.title}</div>
-            <span className={`badge ${prioCls(issue.priority)}`} style={{ boxShadow:`0 0 8px ${PRIO_GLOW[issue.priority]||'transparent'}`, flexShrink:0 }}>{issue.priority}</span>
+            <span className={`badge ${prioCls(issue.priority)}`} style={{ boxShadow:`0 0 8px ${PRIO_GLOW[issue.priority]||'transparent'}`, flexShrink:0 }}>
+              {issue.priority}
+            </span>
           </div>
+
+          {/* Meta */}
           <div className="issue-meta" style={{ marginTop:5 }}>
             <span>📍 {issue.location?.area || issue.location?.address}</span>
             <span>🕐 {new Date(issue.createdAt).toLocaleDateString()}</span>
-            <span style={{ background:'rgba(255,255,255,0.06)', borderRadius:20, padding:'1px 9px', border:'1px solid var(--glass-border)' }}>{issue.department}</span>
+            <span style={{ background:'rgba(255,255,255,0.06)', borderRadius:20, padding:'1px 9px', border:'1px solid var(--glass-border)' }}>
+              {issue.department}
+            </span>
           </div>
 
-          {/* Image thumbnails inline */}
+          {/* ── NEW: Overdue badge + deadline countdown ── */}
+          {(issue.deadline || issue.isOverdue) && (
+            <div style={{ display:'flex', gap:8, marginTop:6, flexWrap:'wrap', alignItems:'center' }}
+              onClick={e => e.stopPropagation()}>
+              <OverdueBadge issue={issue} />
+              {deadlineInfo()}
+              {issue.deadline && (
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                  📅 Due: {new Date(issue.deadline).toLocaleDateString()}
+                </span>
+              )}
+              {issue.penaltyPointsAdded > 0 && (
+                <span style={{ fontSize:11, color:'#f59e0b', fontWeight:600 }}>
+                  ⚠️ +{issue.penaltyPointsAdded} penalty pts
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Image thumbnails */}
           {images.length > 0 && (
             <div style={{ display:'flex', gap:6, marginTop:8, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
               {images.slice(0,3).map((src, i) => (
@@ -65,6 +111,7 @@ export default function IssueCard({ issue }) {
             </div>
           )}
 
+          {/* Footer */}
           <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:10 }}>
             <button className={`upvote-btn ${voted ? 'voted' : ''}`} onClick={handleUpvote} disabled={busy}>
               ▲ {votes}
