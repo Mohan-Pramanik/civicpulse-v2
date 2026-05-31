@@ -22,8 +22,8 @@ const PW_LABELS = ['', 'Weak', 'Fair', 'Good', 'Strong 🔒'];
 
 const validateIndianPhone = phone => {
   if (!phone) return null;
-  if (!/^\+91[6-9]\d{9}$/.test(phone))
-    return 'Must be a valid Indian number: +91 followed by 10 digits starting with 6-9';
+  if (!/^\+91\d{10}$/.test(phone))
+    return 'Must be a valid number: +91 followed by 10 digits';
   return null;
 };
 
