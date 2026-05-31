@@ -166,3 +166,37 @@ cron.schedule('0 0 * * *', async () => {
 });
 
 logger.info('[DeadlineJob] Cron jobs scheduled (hourly compensation check + daily score update)');
+
+// ── Daily: auto-resolve if citizen hasn't responded in 7 days ──
+cron.schedule('30 0 * * *', async () => {
+  logger.info('[AutoResolveJob] Checking for stale pending_verification issues...');
+  try {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // Find issues stuck in pending_verification for >7 days
+    const stale = await Issue.find({
+      status: 'pending_verification',
+      updatedAt: { $lt: sevenDaysAgo },
+    }).populate('reportedBy', 'email name');
+
+    for (const issue of stale) {
+      issue.status = 'resolved';
+      issue.resolvedAt = new Date();
+      issue.statusHistory.push({
+        status: 'resolved',
+        message: 'Auto-resolved: citizen did not respond within 7 days.',
+      });
+      await issue.save();
+
+      if (issue.reportedBy?.email) {
+        await sendEmail(issue.reportedBy.email, 'statusUpdated', issue, 'resolved',
+          'Your issue has been auto-resolved as no response was received within 7 days.').catch(() => {});
+      }
+      logger.info(`[AutoResolveJob] Auto-resolved ${issue.ticketId}`);
+    }
+
+    logger.info(`[AutoResolveJob] Done — ${stale.length} issue(s) auto-resolved`);
+  } catch (err) {
+    logger.error(`[AutoResolveJob] Error: ${err.message}`);
+  }
+});

@@ -12,12 +12,13 @@ export default function Sidebar() {
   const handleLogout = () => { logout(); navigate('/login'); setOpen(false); };
 
   const citizenLinks = [
-    { to:'/feed',    icon:'🏠', label:'Feed' },
-    { to:'/report',  icon:'➕', label:'Report Issue' },
-    { to:'/track',   icon:'📍', label:'My Reports' },
-    { to:'/sos',     icon:'🆘', label:'Emergency SOS', sos:true },
-    { to:'/about',   icon:'ℹ️', label:'About & Help' },
-    { to:'/profile', icon:'👤', label:'Profile' },
+    { to:'/feed',     icon:'🏠', label:'Feed' },
+    { to:'/report',   icon:'➕', label:'Report Issue' },
+    { to:'/track',    icon:'📍', label:'My Reports' },
+    { to:'/heatmap',  icon:'🗺️', label:'Issue Heatmap' },
+    { to:'/sos',      icon:'🆘', label:'Emergency SOS', sos:true },
+    { to:'/about',    icon:'ℹ️', label:'About & Help' },
+    { to:'/profile',  icon:'👤', label:'Profile' },
   ];
 
   const officerLinks = [
@@ -32,7 +33,8 @@ export default function Sidebar() {
     { to:'/admin',                  icon:'📊', label:'Dashboard' },
     { to:'/admin/issues',           icon:'📋', label:'All Issues' },
     { to:'/admin/users',            icon:'👥', label:'Users' },
-    { to:'/admin/accountability',   icon:'⚖️', label:'Accountability' },   // ← NEW
+    { to:'/admin/accountability',   icon:'⚖️', label:'Accountability' },
+    { to:'/heatmap',                icon:'🗺️', label:'Issue Heatmap' },
     { to:'/feed',                   icon:'🏠', label:'Issue Feed' },
     { to:'/about',                  icon:'ℹ️', label:'About & Help' },
     { to:'/profile',                icon:'👤', label:'Profile' },

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { getIssue, addComment, rateIssue, getImageUrl } from '../../api';
+import { getIssue, addComment, rateIssue, getImageUrl, verifyIssueResolved, reopenIssue } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { StatusBadge, PriorityBadge, IssueProgress, Spinner } from '../../components/common';
@@ -122,6 +122,9 @@ export default function IssueDetailPage() {
   const [comment,     setComment]     = useState('');
   const [commenting,  setCommenting]  = useState(false);
   const [rating,      setRating]      = useState(0);
+  const [verifyBusy,  setVerifyBusy]  = useState(false);
+  const [rejectModal, setRejectModal] = useState(false);
+  const [rejectReason,setRejectReason]= useState('');
   const [previewIdx,  setPreviewIdx]  = useState(null);
   const [resolveOpen, setResolveOpen] = useState(false);
 
@@ -353,6 +356,76 @@ export default function IssueDetailPage() {
         </form>
       </div>
 
+      {/* ── Citizen Verification Banner ── */}
+      {isOwner && issue.status === 'pending_verification' && (
+        <div className="card fade-up" style={{ marginBottom:'1rem', border:'2px solid rgba(6,182,212,0.4)', background:'rgba(6,182,212,0.06)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:'1rem' }}>
+            <span style={{ fontSize:32 }}>🔍</span>
+            <div>
+              <div style={{ fontFamily:'var(--f-display)', fontSize:17, fontWeight:800, color:'var(--text-primary)' }}>Is your issue fixed?</div>
+              <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:2 }}>The officer has marked this as resolved. Please confirm whether the problem is actually fixed.</div>
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+            <button
+              className="btn btn-primary"
+              disabled={verifyBusy}
+              style={{ background:'linear-gradient(135deg,#22c55e,#16a34a)', border:'none', flex:1, minWidth:140 }}
+              onClick={async () => {
+                setVerifyBusy(true);
+                try {
+                  await verifyIssueResolved(issue._id);
+                  toast('✅ Issue confirmed as resolved!');
+                  setIssue(i => ({ ...i, status:'resolved', resolvedAt: new Date().toISOString() }));
+                } catch { toast('Failed to confirm', 'error'); }
+                setVerifyBusy(false);
+              }}>
+              ✅ Yes, it's fixed!
+            </button>
+            <button
+              className="btn btn-glass"
+              disabled={verifyBusy}
+              style={{ border:'1px solid rgba(239,68,68,0.4)', color:'#ef4444', flex:1, minWidth:140 }}
+              onClick={() => setRejectModal(true)}>
+              ❌ Not fixed yet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Reject Reason Modal ── */}
+      {rejectModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.75)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
+          onClick={() => setRejectModal(false)}>
+          <div style={{ background:'var(--bg-card)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'var(--r)', padding:'1.75rem', width:'100%', maxWidth:440 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily:'var(--f-display)', fontSize:18, fontWeight:800, color:'var(--text-primary)', marginBottom:8 }}>❌ Report Not Fixed</div>
+            <p style={{ fontSize:13, color:'var(--text-muted)', marginBottom:'1rem' }}>Tell the officer what is still wrong so they can come back and fix it properly.</p>
+            <textarea className="form-control" rows={3}
+              placeholder="e.g. The pothole is still there, only partially filled…"
+              value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+              style={{ marginBottom:'1rem' }} />
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-glass" onClick={() => setRejectModal(false)} style={{ flex:1 }}>Cancel</button>
+              <button className="btn btn-primary" disabled={verifyBusy}
+                style={{ flex:1, background:'linear-gradient(135deg,#ef4444,#dc2626)', border:'none' }}
+                onClick={async () => {
+                  setVerifyBusy(true);
+                  try {
+                    await reopenIssue(issue._id, rejectReason);
+                    toast('Issue reopened — officer will revisit.');
+                    setIssue(i => ({ ...i, status:'in_progress' }));
+                    setRejectModal(false);
+                  } catch { toast('Failed to reopen', 'error'); }
+                  setVerifyBusy(false);
+                }}>
+                Submit Rejection
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Rating (citizen, resolved only) ── */}
       {isOwner && issue.status === 'resolved' && !issue.satisfactionRating && (
         <div className="card fade-up d3" style={{ marginBottom:'1rem', textAlign:'center' }}>
@@ -377,7 +450,7 @@ export default function IssueDetailPage() {
             <select className="form-control" value={newStatus} onChange={e => setNewStatus(e.target.value)}>
               <option value="">Select new status…</option>
               {['assigned','in_progress','resolved','closed','rejected'].map(s => (
-                <option key={s} value={s}>{s.replace(/_/g,' ')}{s==='resolved'?' (requires proof image)':''}</option>
+                <option key={s} value={s}>{s.replace(/_/g,' ')}{s==='resolved'?' → awaits citizen confirmation':''}</option>
               ))}
             </select>
           </div>

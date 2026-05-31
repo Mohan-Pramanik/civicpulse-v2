@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getMyIssues, getImageUrl } from '../../api';
+import { getMyIssues, getImageUrl, verifyIssueResolved, reopenIssue } from '../../api';
+import { useToast } from '../../context/ToastContext';
 import { IssueProgress, StatusBadge, Spinner, EmptyState } from '../../components/common';
 import ImagePreviewModal from '../../components/common/ImagePreviewModal';
 import OverdueBadge from '../../components/OverdueBadge';
 
 export default function TrackPage() {
-  const [issues,     setIssues]     = useState([]);
-  const [busy,       setBusy]       = useState(true);
-  const [previewImg, setPreviewImg] = useState(null);
+  const [issues,      setIssues]      = useState([]);
+  const [busy,        setBusy]        = useState(true);
+  const [previewImg,  setPreviewImg]  = useState(null);
+  const [verifyBusy,  setVerifyBusy]  = useState(null); // holds issue._id being processed
+  const [rejectModal, setRejectModal] = useState(null); // holds issue when reject modal open
+  const [rejectReason,setRejectReason]= useState('');
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     getMyIssues()
@@ -21,7 +26,7 @@ export default function TrackPage() {
   // Deadline time remaining helper
   const deadlineInfo = (issue) => {
     if (!issue.deadline) return null;
-    if (['resolved','closed','rejected'].includes(issue.status)) return null;
+    if (['resolved','closed'].includes(issue.status)) return null;
     const now      = new Date();
     const deadline = new Date(issue.deadline);
     const diffMs   = deadline - now;
@@ -72,9 +77,52 @@ export default function TrackPage() {
                   </div>
                 </div>
                 <StatusBadge status={issue.status} />
+                {issue.status === 'pending_verification' && (
+                  <span style={{ fontSize:11, fontWeight:700, background:'rgba(6,182,212,0.15)', color:'#06b6d4', border:'1px solid rgba(6,182,212,0.3)', borderRadius:20, padding:'2px 10px' }}>
+                    🔍 Awaiting confirmation
+                  </span>
+                )}
               </div>
               <IssueProgress status={issue.status} />
             </div>
+
+            {/* ── Citizen Verification Action (inline on TrackPage) ── */}
+            {issue.status === 'pending_verification' && (
+              <div style={{ marginTop:12, background:'rgba(6,182,212,0.06)', border:'2px solid rgba(6,182,212,0.3)', borderRadius:'var(--r-sm)', padding:'14px 16px' }}>
+                <div style={{ display:'flex', gap:10, alignItems:'flex-start', marginBottom:12 }}>
+                  <span style={{ fontSize:24, lineHeight:1 }}>🔍</span>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:800, color:'var(--text-primary)', fontFamily:'var(--f-display)' }}>Is your issue fixed?</div>
+                    <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>The officer uploaded proof and marked this resolved. Please confirm.</div>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:8 }}>
+                  <button
+                    className="btn btn-sm"
+                    disabled={verifyBusy === issue._id}
+                    style={{ flex:1, background:'linear-gradient(135deg,#22c55e,#16a34a)', border:'none', color:'#fff', fontWeight:700 }}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      setVerifyBusy(issue._id);
+                      try {
+                        await verifyIssueResolved(issue._id);
+                        toast('✅ Issue confirmed as resolved!');
+                        setIssues(prev => prev.map(i => i._id === issue._id ? { ...i, status:'resolved' } : i));
+                      } catch { toast('Failed to confirm', 'error'); }
+                      setVerifyBusy(null);
+                    }}>
+                    {verifyBusy === issue._id ? '…' : "✅ Yes, it's fixed!"}
+                  </button>
+                  <button
+                    className="btn btn-sm btn-glass"
+                    disabled={verifyBusy === issue._id}
+                    style={{ flex:1, border:'1px solid rgba(239,68,68,0.4)', color:'#ef4444', fontWeight:700 }}
+                    onClick={(e) => { e.stopPropagation(); setRejectReason(''); setRejectModal(issue); }}>
+                    ❌ Not fixed yet
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* ── Deadline & overdue info ─────────────────────── */}
             {dl && (
@@ -180,6 +228,43 @@ export default function TrackPage() {
 
       {previewImg && (
         <ImagePreviewModal images={previewImg.images} startIndex={previewImg.idx} onClose={() => setPreviewImg(null)} />
+      )}
+
+      {/* ── Reject Reason Modal ── */}
+      {rejectModal && (
+        <div style={{ position:'fixed', inset:0, zIndex:9999, background:'rgba(0,0,0,0.78)', backdropFilter:'blur(8px)', display:'flex', alignItems:'center', justifyContent:'center', padding:'1rem' }}
+          onClick={() => setRejectModal(null)}>
+          <div style={{ background:'var(--bg-card)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'var(--r)', padding:'1.75rem', width:'100%', maxWidth:440, boxShadow:'0 24px 64px rgba(0,0,0,0.6)' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <div style={{ fontFamily:'var(--f-display)', fontSize:18, fontWeight:800, color:'var(--text-primary)' }}>❌ Report Not Fixed</div>
+              <button onClick={() => setRejectModal(null)} style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:20, cursor:'pointer' }}>✕</button>
+            </div>
+            <div style={{ fontSize:12, color:'#f87171', fontWeight:600, marginBottom:4 }}>{rejectModal.ticketId} — {rejectModal.title}</div>
+            <p style={{ fontSize:13, color:'var(--text-muted)', marginBottom:'1rem' }}>Tell the officer what is still wrong so they can come back and fix it properly.</p>
+            <textarea className="form-control" rows={3}
+              placeholder="e.g. The pothole is still there, only partially filled…"
+              value={rejectReason} onChange={e => setRejectReason(e.target.value)}
+              style={{ marginBottom:'1rem' }} />
+            <div style={{ display:'flex', gap:10 }}>
+              <button className="btn btn-glass" style={{ flex:1 }} onClick={() => setRejectModal(null)}>Cancel</button>
+              <button className="btn btn-primary" disabled={verifyBusy === rejectModal._id}
+                style={{ flex:1, background:'linear-gradient(135deg,#ef4444,#dc2626)', border:'none' }}
+                onClick={async () => {
+                  setVerifyBusy(rejectModal._id);
+                  try {
+                    await reopenIssue(rejectModal._id, rejectReason || 'Not fixed yet');
+                    toast('Issue reopened — officer will revisit.');
+                    setIssues(prev => prev.map(i => i._id === rejectModal._id ? { ...i, status:'in_progress' } : i));
+                    setRejectModal(null);
+                  } catch { toast('Failed to reopen', 'error'); }
+                  setVerifyBusy(null);
+                }}>
+                {verifyBusy === rejectModal._id ? 'Submitting…' : 'Submit Rejection'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

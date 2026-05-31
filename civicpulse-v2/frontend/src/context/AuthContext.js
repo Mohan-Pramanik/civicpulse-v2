@@ -8,12 +8,20 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const fetchMe = useCallback(() => {
-    return getMe().then(r => setUser(r.data.user)).catch(() => localStorage.removeItem('cp_token'));
+    return getMe()
+      .then(r => setUser(r.data.user))
+      .catch(() => {
+        localStorage.removeItem('cp_token');
+        setUser(null);
+      });
   }, []);
 
   useEffect(() => {
-    if (localStorage.getItem('cp_token')) fetchMe().finally(() => setLoading(false));
-    else setLoading(false);
+    if (localStorage.getItem('cp_token')) {
+      fetchMe().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, [fetchMe]);
 
   const login = async (email, password) => {
@@ -30,11 +38,23 @@ export const AuthProvider = ({ children }) => {
     return r.data.user;
   };
 
-  const logout = () => { localStorage.removeItem('cp_token'); setUser(null); };
+  // ── Used by Google Sign-In when an existing user logs in ──
+  // The backend already verified the Google token and returned
+  // a JWT + user object — we just store them directly.
+  const loginWithToken = (token, userData) => {
+    localStorage.setItem('cp_token', token);
+    setUser(userData);
+  };
+
+  const logout = () => {
+    localStorage.removeItem('cp_token');
+    setUser(null);
+  };
+
   const refreshUser = () => fetchMe();
 
   return (
-    <Ctx.Provider value={{ user, loading, login, register, logout, refreshUser }}>
+    <Ctx.Provider value={{ user, loading, login, register, loginWithToken, logout, refreshUser }}>
       {children}
     </Ctx.Provider>
   );

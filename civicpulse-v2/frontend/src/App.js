@@ -24,6 +24,7 @@ import AccountabilityDashboard   from './pages/admin/AccountabilityDashboard';  
 import OfficerDashboard          from './pages/officer/OfficerDashboard';
 import DepartmentHeadDashboard   from './pages/officer/DepartmentHeadDashboard';
 import OfficerAccountability     from './pages/officer/OfficerAccountability';  // ← NEW
+import HeatmapPage                from './pages/citizen/HeatmapPage';
 import Chatbot                   from './components/common/Chatbot';
 
 const Guard = ({ children, roles }) => {
@@ -69,6 +70,7 @@ function AppRoutes() {
                   <Route path="/track"         element={<TrackPage />} />
                   <Route path="/issues/:id"    element={<IssueDetail />} />
                   <Route path="/profile"       element={<ProfilePage />} />
+                  <Route path="/heatmap"       element={<HeatmapPage />} />
                   <Route path="/sos"           element={<Guard roles={['citizen']}><EmergencySOS /></Guard>} />
                   <Route path="/about"         element={<AboutPage />} />
                   <Route path="/officer"       element={<Guard roles={['department']}>{officerRoute()}</Guard>} />

@@ -257,7 +257,8 @@ router.put('/:id/upvote', protect, asyncHandler(async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────
 // PUT /api/issues/:id/status — admin / department only
-//   Requires proof image when status = 'resolved'
+//   When status = 'resolved': sets to 'pending_verification' and emails citizen
+//   Admin can bypass verification and set resolved directly
 // ─────────────────────────────────────────────────────────────
 router.put('/:id/status',
   protect,
@@ -279,13 +280,104 @@ router.put('/:id/status',
 
     const proofImage = req.file ? `/uploads/${req.file.filename}` : null;
 
-    issue.status = status;
-    issue.statusHistory.push({ status, message, updatedBy: req.user._id, proofImage });
+    // When officer/dept head marks resolved → go to pending_verification first
+    // Admin can set resolved directly (bypass citizen verification)
+    const actualStatus = (status === 'resolved' && req.user.role !== 'admin')
+      ? 'pending_verification'
+      : status;
+
+    issue.status = actualStatus;
+    issue.statusHistory.push({ status: actualStatus, message, updatedBy: req.user._id, proofImage });
     if (proofImage) issue.images.push(proofImage);
 
     await issue.save();
-    sendEmail(issue.reportedBy.email, 'statusUpdated', issue, status, message).catch(() => {});
+
+    if (actualStatus === 'pending_verification') {
+      // Email citizen to confirm or reject
+      sendEmail(issue.reportedBy.email, 'verificationRequest', {
+        issue,
+        officerMessage: message,
+        clientUrl: process.env.CLIENT_URL || 'http://localhost:3000',
+      }).catch(() => {});
+    } else {
+      sendEmail(issue.reportedBy.email, 'statusUpdated', issue, actualStatus, message).catch(() => {});
+    }
+
     success(res, { issue });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/issues/:id/verify — citizen confirms fix is done
+// ─────────────────────────────────────────────────────────────
+router.put('/:id/verify',
+  protect,
+  authorize('citizen'),
+  asyncHandler(async (req, res) => {
+    const issue = await Issue.findOne({
+      _id: req.params.id,
+      reportedBy: req.user._id,
+      status: 'pending_verification',
+    }).populate('assignedTo', 'email name').populate('reportedBy', 'email name');
+
+    if (!issue) throw new ApiError('Issue not found or not awaiting your verification', 404);
+
+    issue.status = 'resolved';
+    issue.resolvedAt = new Date();
+    issue.statusHistory.push({
+      status: 'resolved',
+      message: 'Citizen confirmed the issue has been resolved.',
+      updatedBy: req.user._id,
+    });
+    await issue.save();
+
+    // Notify officer that citizen confirmed
+    if (issue.assignedTo?.email) {
+      sendEmail(issue.assignedTo.email, 'citizenConfirmed', {
+        issue,
+        citizenName: req.user.name,
+      }).catch(() => {});
+    }
+
+    success(res, { issue, message: 'Thank you! Issue marked as resolved.' });
+  })
+);
+
+// ─────────────────────────────────────────────────────────────
+// PUT /api/issues/:id/reopen — citizen rejects, says not fixed
+// ─────────────────────────────────────────────────────────────
+router.put('/:id/reopen',
+  protect,
+  authorize('citizen'),
+  asyncHandler(async (req, res) => {
+    const { reason } = req.body;
+
+    const issue = await Issue.findOne({
+      _id: req.params.id,
+      reportedBy: req.user._id,
+      status: 'pending_verification',
+    }).populate('assignedTo', 'email name').populate('reportedBy', 'email name');
+
+    if (!issue) throw new ApiError('Issue not found or not awaiting your verification', 404);
+
+    issue.status = 'in_progress';
+    issue.statusHistory.push({
+      status: 'in_progress',
+      message: `Citizen rejected resolution: "${reason || 'Issue not actually fixed'}"`,
+      updatedBy: req.user._id,
+    });
+    await issue.save();
+
+    // Notify officer that citizen rejected
+    if (issue.assignedTo?.email) {
+      sendEmail(issue.assignedTo.email, 'citizenRejected', {
+        issue,
+        citizenName: req.user.name,
+        reason: reason || 'Not fixed yet',
+      }).catch(() => {});
+    }
+
+    success(res, { issue, message: 'Issue has been reopened for the officer to revisit.' });
   })
 );
 

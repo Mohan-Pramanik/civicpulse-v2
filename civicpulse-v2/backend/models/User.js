@@ -23,13 +23,16 @@ const UserSchema = new mongoose.Schema({
     select: false,
   },
 
+  // ── Google OAuth ──────────────────────────────────────────────
+  googleId: { type: String, default: null },
+
   // ── 🇮🇳 INDIA-ONLY: phone must be +91XXXXXXXXXX ─────────────
   phone: {
     type: String,
     validate: {
       validator: function (v) {
-        if (!v) return true; // optional field
-        return /^\+91[6-9]\d{9}$/.test(v);
+        if (!v) return true;
+        return /^\+91\d{10}$/.test(v);
       },
       message: 'Phone must be a valid Indian number (+91XXXXXXXXXX, e.g. +919876543210)',
     },
@@ -40,7 +43,7 @@ const UserSchema = new mongoose.Schema({
     type: String,
     validate: {
       validator: function (v) {
-        if (!v) return true; // optional
+        if (!v) return true;
         return /^[1-9][0-9]{5}$/.test(v);
       },
       message: 'Pincode must be a valid 6-digit Indian pincode (e.g. 700001)',
@@ -60,20 +63,20 @@ const UserSchema = new mongoose.Schema({
   loginCount: { type: Number, default: 0 },
 
   // ── Penalty & Performance (field officers only) ───────────────
-  penaltyPoints:    { type: Number, default: 0 }, // accumulates over time
-  totalAssigned:    { type: Number, default: 0 }, // total issues ever assigned
-  resolvedOnTime:   { type: Number, default: 0 }, // resolved before deadline
-  resolvedLate:     { type: Number, default: 0 }, // resolved after deadline
+  penaltyPoints:    { type: Number, default: 0 },
+  totalAssigned:    { type: Number, default: 0 },
+  resolvedOnTime:   { type: Number, default: 0 },
+  resolvedLate:     { type: Number, default: 0 },
 
-  // ── Government Compensation (deducted from officer for missed deadlines) ──
-  compensationOwed: { type: Number, default: 0 }, // total ₹ owed to govt (running total)
-  compensationPaid: { type: Number, default: 0 }, // total ₹ already paid/cleared by admin
+  // ── Government Compensation ───────────────────────────────────
+  compensationOwed: { type: Number, default: 0 },
+  compensationPaid: { type: Number, default: 0 },
 
   resetPasswordToken:  String,
   resetPasswordExpire: Date,
 }, { timestamps: true });
 
-// ── Virtual: accountability score as 0–100 percentage ────────
+// ── Virtual: accountability score as 0–100 ───────────────────
 UserSchema.virtual('accountabilityScore').get(function () {
   if (!this.totalAssigned) return 100;
   return Math.round((this.resolvedOnTime / this.totalAssigned) * 100);
@@ -82,7 +85,6 @@ UserSchema.virtual('accountabilityScore').get(function () {
 UserSchema.set('toJSON',   { virtuals: true });
 UserSchema.set('toObject', { virtuals: true });
 
-// email index is auto-created by unique:true above — no manual index needed
 UserSchema.index({ role: 1 });
 UserSchema.index({ department: 1 });
 

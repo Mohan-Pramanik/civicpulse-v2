@@ -333,7 +333,8 @@ export default function OfficerDashboard() {
       setKpis({
         total:          all.length,
         pending:        all.filter(i => i.status === 'pending').length,
-        inProgress:     all.filter(i => ['assigned','in_progress'].includes(i.status)).length,
+        inProgress:     all.filter(i => ['assigned','in_progress','pending_verification'].includes(i.status)).length,
+        awaitingVerification: all.filter(i => i.status === 'pending_verification').length,
         resolved:       all.filter(i => i.status === 'resolved').length,
         resolutionRate: all.length > 0
           ? ((all.filter(i => i.status === 'resolved').length / all.length) * 100).toFixed(1)
@@ -354,6 +355,7 @@ export default function OfficerDashboard() {
     { key:'total',      label:'My Assigned', icon:'📋', color:'#6366f1', glow:'rgba(99,102,241,0.3)', filter:'' },
     { key:'pending',    label:'Pending',     icon:'🔴', color:'#ef4444', glow:'rgba(239,68,68,0.3)',  filter:'pending' },
     { key:'inProgress', label:'In Progress', icon:'⚙️', color:'#f59e0b', glow:'rgba(245,158,11,0.3)', filter:'in_progress' },
+    { key:'awaitingVerification', label:'Awaiting Citizen', icon:'🔍', color:'#06b6d4', glow:'rgba(6,182,212,0.3)', filter:'pending_verification' },
     { key:'resolved',   label:'Resolved',    icon:'✅', color:'#22c55e', glow:'rgba(34,197,94,0.3)',  filter:'resolved' },
   ];
 

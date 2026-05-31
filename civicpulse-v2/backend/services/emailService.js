@@ -102,3 +102,84 @@ exports.sendEmail = async (to, templateKey, data) => {
     logger.error(`Email failed: ${err.message}`);
   }
 };
+
+Object.assign(templates, {
+
+  verificationRequest: (data) => ({
+    subject: `[CivicPulse] ✅ Please confirm — ${data.issue.ticketId} marked as resolved`,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+        <div style="background:#06b6d4;padding:20px 24px">
+          <h2 style="color:#fff;margin:0">🔍 Is your issue resolved?</h2>
+        </div>
+        <div style="padding:24px">
+          <p>Hi <strong>${data.issue.reportedBy.name}</strong>,</p>
+          <p>The officer has marked your issue as resolved. Please visit the app and confirm whether the problem has actually been fixed.</p>
+          <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:16px 0">
+            <strong>Ticket:</strong> ${data.issue.ticketId}<br/>
+            <strong>Issue:</strong> ${data.issue.title}<br/>
+            ${data.officerMessage ? `<strong>Officer note:</strong> ${data.officerMessage}` : ''}
+          </div>
+          <div style="display:flex;gap:12px;margin-top:20px">
+            <a href="${data.clientUrl}/issues/${data.issue._id}" style="display:inline-block;background:#22c55e;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">✅ Yes, it's fixed!</a>
+            <a href="${data.clientUrl}/issues/${data.issue._id}" style="display:inline-block;background:#ef4444;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700">❌ Not fixed yet</a>
+          </div>
+          <p style="color:#6b7280;font-size:12px;margin-top:16px">You have 7 days to respond. If no response, the issue will auto-resolve.</p>
+        </div>
+      </div>`
+  }),
+
+  citizenConfirmed: (data) => ({
+    subject: `[CivicPulse] 🎉 Citizen confirmed resolution — ${data.issue.ticketId}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+        <div style="background:#22c55e;padding:20px 24px">
+          <h2 style="color:#fff;margin:0">🎉 Resolution Confirmed!</h2>
+        </div>
+        <div style="padding:24px">
+          <p>Great news! <strong>${data.citizenName}</strong> has confirmed that issue <strong>${data.issue.ticketId}</strong> — <em>${data.issue.title}</em> — is fully resolved.</p>
+          <p>The issue is now officially closed. Well done!</p>
+        </div>
+      </div>`
+  }),
+
+  citizenRejected: (data) => ({
+    subject: `[CivicPulse] ⚠️ Citizen says issue not fixed — ${data.issue.ticketId}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:560px;margin:0 auto;border:1px solid #e5e7eb;border-radius:10px;overflow:hidden">
+        <div style="background:#f59e0b;padding:20px 24px">
+          <h2 style="color:#fff;margin:0">⚠️ Issue Reopened by Citizen</h2>
+        </div>
+        <div style="padding:24px">
+          <p><strong>${data.citizenName}</strong> has rejected the resolution for issue <strong>${data.issue.ticketId}</strong> — <em>${data.issue.title}</em>.</p>
+          <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:14px;margin:16px 0">
+            <strong>Citizen's reason:</strong><br/>${data.reason}
+          </div>
+          <p>The issue has been moved back to <strong>In Progress</strong>. Please revisit and fix the problem.</p>
+        </div>
+      </div>`
+  }),
+
+});
+
+
+Object.assign(templates, {
+  emailOtp: (data) => ({
+    subject: `[CivicPulse] ${data.otp} — Your verification code`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#6366f1,#06b6d4);padding:24px;text-align:center">
+          <h2 style="color:#fff;margin:0;font-size:22px">🔐 Verify Your Email</h2>
+          <p style="color:rgba(255,255,255,0.85);margin:6px 0 0;font-size:13px">CivicPulse — Civic Issue Reporting</p>
+        </div>
+        <div style="padding:28px;text-align:center">
+          <p style="color:#374151;margin:0 0 20px">Hi <strong>${data.name}</strong>, use the code below to verify your email address.</p>
+          <div style="background:#f5f3ff;border:2px dashed #818cf8;border-radius:12px;padding:20px;display:inline-block;margin:0 auto">
+            <div style="font-size:42px;font-weight:900;letter-spacing:14px;color:#4f46e5;font-family:monospace">${data.otp}</div>
+          </div>
+          <p style="color:#6b7280;font-size:13px;margin:20px 0 0">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+          <p style="color:#9ca3af;font-size:11px;margin:8px 0 0">If you didn't create a CivicPulse account, ignore this email.</p>
+        </div>
+      </div>`
+  }),
+});

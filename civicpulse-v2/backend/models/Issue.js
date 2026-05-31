@@ -39,7 +39,7 @@ const IssueSchema = new mongoose.Schema({
   },
   status: {
     type:String,
-    enum:['pending','assigned','in_progress','resolved','closed','rejected'],
+    enum:['pending','assigned','in_progress','pending_verification','resolved','closed','rejected'],
     default:'pending'
   },
   location: {
@@ -105,6 +105,10 @@ IssueSchema.pre('save', function(next) {
   if (this.isModified('status') && this.status === 'resolved' && !this.resolvedAt) {
     this.resolvedAt = new Date();
   }
+  // clear resolvedAt if reopened
+  if (this.isModified('status') && ['pending','in_progress','pending_verification'].includes(this.status)) {
+    this.resolvedAt = undefined;
+  }
   next();
 });
 
@@ -113,7 +117,7 @@ IssueSchema.virtual('upvoteCount').get(function() { return this.upvotes.length; 
 
 // isOverdue: past deadline and not yet resolved
 IssueSchema.virtual('isOverdue').get(function() {
-  if (['resolved','closed','rejected'].includes(this.status)) return false;
+  if (['resolved','closed','rejected','pending_verification'].includes(this.status)) return false;
   if (!this.deadline) return false;
   return new Date() > this.deadline;
 });

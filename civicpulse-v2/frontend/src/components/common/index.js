@@ -1,10 +1,10 @@
 import React from 'react';
 
-const STATUS_COLOR = { pending:'#94a3b8', assigned:'#38bdf8', in_progress:'#fbbf24', resolved:'#4ade80', closed:'#6b7280', rejected:'#f87171' };
-const STATUS_PCT   = { pending:10, assigned:30, in_progress:65, resolved:100, closed:100, rejected:0 };
+const STATUS_COLOR = { pending:'#94a3b8', assigned:'#38bdf8', in_progress:'#fbbf24', pending_verification:'#06b6d4', resolved:'#4ade80', closed:'#6b7280', rejected:'#f87171' };
+const STATUS_PCT   = { pending:10, assigned:30, in_progress:65, pending_verification:85, resolved:100, closed:100, rejected:0 };
 
 export function StatusBadge({ status }) {
-  const map = { pending:'badge-gray', assigned:'badge-blue', in_progress:'badge-amber', resolved:'badge-green', closed:'badge-gray', rejected:'badge-red' };
+  const map = { pending:'badge-gray', assigned:'badge-blue', in_progress:'badge-amber', pending_verification:'badge-cyan', resolved:'badge-green', closed:'badge-gray', rejected:'badge-red' };
   return <span className={`badge ${map[status]||'badge-gray'}`}>{status?.replace(/_/g,' ')}</span>;
 }
 

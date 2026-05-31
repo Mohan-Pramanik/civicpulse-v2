@@ -13,12 +13,19 @@ api.interceptors.request.use(cfg => {
 });
 
 // ── Auto-logout on 401 ────────────────────────────────────────
+// But do NOT redirect if we're already on an auth page —
+// that causes the 401 error to flash on the register/login form.
+const AUTH_PATHS = ['/login', '/register', '/forgot-password'];
+
 api.interceptors.response.use(
   r => r,
   err => {
     if (err.response?.status === 401) {
       localStorage.removeItem('cp_token');
-      window.location.href = '/login';
+      const onAuthPage = AUTH_PATHS.some(p => window.location.pathname.startsWith(p));
+      if (!onAuthPage) {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(err);
   }
@@ -52,8 +59,7 @@ export const rateIssue      = (id, d) => api.put(`/issues/${id}/rate`, d);
 export const getMyIssues    = ()      => api.get('/issues/mine');
 export const deleteIssue    = id      => api.delete(`/issues/${id}`);
 
-// ── 📍 Nearby issues (duplicate check + map) ─────────────────
-// lat, lng required; radius in metres (default 500); optional category/status
+// ── 📍 Nearby issues ─────────────────────────────────────────
 export const getNearbyIssues = (lat, lng, radius = 500, params = {}) =>
   api.get('/issues/nearby', { params: { lat, lng, radius, ...params } });
 
@@ -71,36 +77,23 @@ export const getOfficers    = p       => api.get('/admin/officers', { params: p 
 export const assignIssue    = (id, d) => api.put(`/admin/issues/${id}/assign`, d);
 
 // ── Officer management (dept head) ───────────────────────────
-// GET  /api/admin/my-officers  → officers in head's own department
-// POST /api/admin/my-officers  → create a new officer in same dept
-export const getMyOfficers = ()           => api.get('/admin/my-officers');
-export const createOfficer = d            => api.post('/admin/my-officers', d);
-export const assignOfficer = (issueId, officerId) =>
-  api.put(`/admin/issues/${issueId}/assign`, { officerId });
+export const getMyOfficers = ()                   => api.get('/admin/my-officers');
+export const createOfficer = d                    => api.post('/admin/my-officers', d);
+export const assignOfficer = (issueId, officerId) => api.put(`/admin/issues/${issueId}/assign`, { officerId });
 
 // ── Deadline / Penalty / Accountability ──────────────────────
-// Assign issue to officer with a deadline (days from now)
-export const assignWithDeadline = (issueId, officerId, deadlineDays) =>
+export const assignWithDeadline         = (issueId, officerId, deadlineDays) =>
   api.put(`/deadline/assign/${issueId}`, { officerId, deadlineDays });
-
-// Overdue issues list
-export const getOverdueIssues = () =>
-  api.get('/deadline/overdue');
-
-// Full admin accountability dashboard
-export const getAccountabilityDashboard = () =>
-  api.get('/deadline/dashboard');
-
-// Officer accountability scores
-export const getOfficerAccountability = () =>
-  api.get('/deadline/accountability');
-
-// Manually add penalty points to an officer (admin only)
-export const addPenaltyPoints = (officerId, points, reason) =>
+export const getOverdueIssues           = ()                    => api.get('/deadline/overdue');
+export const getAccountabilityDashboard = ()                    => api.get('/deadline/dashboard');
+export const getOfficerAccountability   = ()                    => api.get('/deadline/accountability');
+export const addPenaltyPoints           = (officerId, points, reason) =>
   api.post(`/deadline/penalty/${officerId}`, { points, reason });
-
-// Reset an officer's penalty points to 0 (admin only)
-export const resetPenaltyPoints = (officerId) =>
+export const resetPenaltyPoints         = (officerId)           =>
   api.delete(`/deadline/penalty/${officerId}/reset`);
+
+// ── Citizen verification ─────────────────────────────────────
+export const verifyIssueResolved = (id)         => api.put(`/issues/${id}/verify`);
+export const reopenIssue         = (id, reason) => api.put(`/issues/${id}/reopen`, { reason });
 
 export default api;

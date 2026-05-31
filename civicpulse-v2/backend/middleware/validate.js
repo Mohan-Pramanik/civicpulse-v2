@@ -22,7 +22,7 @@ exports.registerRules = [
 
   body('email')
     .isEmail().withMessage('Invalid email address')
-    .normalizeEmail(),
+    .toLowerCase(),  // only lowercase, no other transformations
 
   body('password')
     .isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),

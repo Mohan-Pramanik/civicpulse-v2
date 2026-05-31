@@ -24,7 +24,6 @@ export default function ReportPage() {
   const [previews,   setPreviews]   = useState([]);
   const [error,      setError]      = useState('');
   const [busy,       setBusy]       = useState(false);
-  const [locBusy,    setLocBusy]    = useState(false);
   const galleryRef   = useRef(null);
   const cameraRef    = useRef(null);
   const { toast }    = useToast();
@@ -32,17 +31,19 @@ export default function ReportPage() {
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
   const route = ROUTING[form.category];
 
-  const getGPS = () => {
-    if (!navigator.geolocation) return toast('Geolocation not supported','error');
-    setLocBusy(true);
-    navigator.geolocation.getCurrentPosition(
-      p => {
-        setForm(f => ({ ...f, lat:p.coords.latitude.toFixed(5), lng:p.coords.longitude.toFixed(5) }));
-        setLocBusy(false);
-        toast('📡 GPS location captured');
-      },
-      () => { toast('Could not get location','error'); setLocBusy(false); }
-    );
+  // GPS + reverse geocode are now handled inside IssueMap
+  // This callback receives auto-filled address fields from the map component
+  const handleMapPick = (lat, lng, geo = {}) => {
+    setForm(f => ({
+      ...f,
+      lat,
+      lng,
+      ...(geo.address && !f.address ? { address: geo.address } : {}),
+      ...(geo.area    && !f.area    ? { area:    geo.area    } : {}),
+      ...(geo.ward    && !f.ward    ? { ward:    geo.ward    } : {}),
+      ...(geo.pincode && !f.pincode ? { pincode: geo.pincode } : {}),
+    }));
+    toast('📍 Location captured — address fields auto-filled');
   };
 
   const addFiles = (files) => {
@@ -188,32 +189,22 @@ export default function ReportPage() {
                   <input className="form-control" placeholder="700001" value={form.pincode} onChange={set('pincode')} />
                 </div>
               </div>
-            </div>
-
-            <div style={{ display:'flex', gap:8, alignItems:'center', marginBottom:'1rem', flexWrap:'wrap' }}>
-              <button type="button" className="btn btn-glass" onClick={getGPS} disabled={locBusy}>
-                {locBusy ? '📡 Getting location…' : '📡 Use My GPS Location'}
-              </button>
-              {form.lat && (
-                <span style={{ fontSize:12, color:'#22c55e', display:'flex', alignItems:'center', gap:4 }}>
-                  ✅ GPS: {form.lat}, {form.lng}
-                </span>
-              )}
-            </div>
-
-            <div style={{ marginBottom:'1rem' }}>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8, fontFamily:'var(--f-display)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em' }}>
-                🖱️ Or click on the map to pin exact location
+              <div className="form-group">
+                <label className="form-label">Ward No. <span style={{fontSize:11,color:'var(--text-muted)',fontWeight:400}}>(auto-filled by GPS)</span></label>
+                <div className="input-wrap"><span className="input-icon">🗳️</span>
+                  <input className="form-control" placeholder="e.g. Ward 57 (auto-detected)" value={form.ward} onChange={set('ward')} />
+                </div>
               </div>
+            </div>
+
+            {/* GPS + map — GPS button inside IssueMap, auto-fills address/area/ward/pincode */}
+            <div style={{ marginBottom:'1rem' }}>
               <IssueMap
                 picker
                 lat={form.lat}
                 lng={form.lng}
-                height={280}
-                onPick={(lat, lng) => {
-                  setForm(f => ({ ...f, lat, lng }));
-                  toast('📍 Location pinned on map');
-                }}
+                height={300}
+                onPick={handleMapPick}
               />
             </div>
 
