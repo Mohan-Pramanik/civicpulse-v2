@@ -149,10 +149,19 @@ router.get('/dept-stats', authorize('admin', 'department'), asyncHandler(async (
 // GET /api/admin/issues  (admin + dept head — dept head sees only their dept)
 // ─────────────────────────────────────────────────────────────
 router.get('/issues', authorize('admin', 'department'), asyncHandler(async (req, res) => {
-  const { status, priority, limit = 100, page = 1 } = req.query;
+  const { status, priority, assignedTo, limit = 100, page = 1 } = req.query;
 
   const filter = {};
-  if (req.user.role === 'department') filter.department = req.user.department;
+  if (req.user.role === 'department' && !req.user.isHead) {
+    // Field officer: only see their own assigned issues
+    filter.assignedTo = req.user._id;
+  } else if (req.user.role === 'department' && req.user.isHead) {
+    // Dept head: see all issues in their department
+    filter.department = req.user.department;
+  }
+  // Admin: no department/assignedTo restriction — sees everything
+  // Optional explicit filter (from query param, e.g. admin viewing one officer)
+  if (assignedTo && req.user.role === 'admin') filter.assignedTo = assignedTo;
   if (status)   filter.status   = status;
   if (priority) filter.priority = priority;
 
