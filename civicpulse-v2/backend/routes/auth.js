@@ -17,7 +17,7 @@ router.post('/register', registerRules, validate, asyncHandler(async (req, res) 
   const { name, email, password, phone, pincode, role, department, isHead } = req.body;
 
   // ── 🇮🇳 India-only: phone ───────────────────────────────────
-  if (phone && !/^\+91\d{10}$/.test(phone)) {
+  if (phone && !/^\+91[6-9]\d{9}$/.test(phone)) {
     throw new ApiError(
       'Only Indian phone numbers are allowed (+91XXXXXXXXXX). ' +
       'Must start with +91 followed by 10 digits.',
@@ -78,7 +78,7 @@ router.get('/me', protect, (req, res) => success(res, { user: req.user }));
 router.put('/updateprofile', protect, asyncHandler(async (req, res) => {
   const { name, phone, area, ward, pincode } = req.body;
 
-  if (phone && !/^\+91\d{10}$/.test(phone)) {
+  if (phone && !/^\+91[6-9]\d{9}$/.test(phone)) {
     throw new ApiError('Only Indian phone numbers allowed (+91XXXXXXXXXX)', 400);
   }
   if (pincode && !/^[1-9][0-9]{5}$/.test(pincode)) {
