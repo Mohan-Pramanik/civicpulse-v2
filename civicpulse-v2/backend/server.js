@@ -102,5 +102,5 @@ connectDB().then(async () => {
 
 process.on('unhandledRejection', err => { logger.error(`Unhandled: ${err.message}`); process.exit(1); });
 
-require('./jobs/deadlineJob');
+require('./jobs/Deadlinejob');
 module.exports = app;
